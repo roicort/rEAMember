@@ -1,0 +1,17 @@
+# config/256.yml
+
+app:
+  dataset: SPOTS
+
+neural:
+  latent_dim: 256
+  epochs: 100
+  batch_size: 64
+  learning_rate: 0.001
+  patience: 10
+
+memory:
+  iota: 0.0
+  kappa: 0.0
+  xi: 0.0
+  sigma: 0.0

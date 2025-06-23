@@ -1,0 +1,39 @@
+[project]
+name = "rEAMember"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "docopt",
+    "pypng",
+    "seaborn",
+    "numpy",
+    "pandas",
+    "matplotlib",
+    "protobuf",
+    "h5py",
+    "tqdm",
+    "joblib",
+    "torch>=2.7.0",
+    "click>=8.2.1",
+    "omegaconf>=2.3.0",
+    "torchvision>=0.22.1",
+    "pytorch-lightning>=2.5.2",
+    "ipykernel>=6.29.5",
+    "tensorboard>=2.19.0",
+    "scikit-learn>=1.7.0",
+    "plotly>=6.1.2",
+    "kaleido>=1.0.0",
+    "pdoc>=15.0.4",
+]
+
+[tool.uv.sources]
+torch = [
+  { index = "pytorch-cu128", marker = "sys_platform == 'linux'" },
+]
+
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true
