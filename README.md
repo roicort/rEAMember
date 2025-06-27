@@ -11,3 +11,9 @@ uv run manage.py
 ```bash
 sh tensorboard.sh
 ```
+
+## Docs
+
+```bash
+uv run pdoc manage.py reamember
+```
