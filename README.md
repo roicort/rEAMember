@@ -13,10 +13,20 @@ For example:
 ```bash
 uv run manage.py get-embeddings --config ./config/spots-256.yml
 ```
+This command will generate embeddings for the dataset specified in the configuration file `spots-256.yml`.
 
-```bash
-sh tensorboard.sh
-```
+## Available Commands
+
+Main
+
+- `get-embeddings`: Generate embeddings for the dataset specified in the configuration file.
+- `train-autoencoder`: Train the autoencoder model with the specified configuration file.
+- `train-classifier`: Train the classifier model with the specified configuration file.
+
+Utils
+
+- `run-tensorboard`: Start TensorBoard to visualize training metrics.
+- `clean-logs`: Clean the logs generated during experiments.
 
 ## Docs
 

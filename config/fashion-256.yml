@@ -8,6 +8,7 @@ neural:
   batch_size: 64
   learning_rate: 0.001
   patience: 3
+  delta: 0.005
 
 memory:
   iota: 0.0

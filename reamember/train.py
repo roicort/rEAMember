@@ -46,7 +46,7 @@ def train_autoencoder(config, input_shape, dataset, name, save_path):
         persistent_workers=True
     )
     model = Autoencoder(input_shape=input_shape, latent_dim=config.latent_dim)
-    early_stop = EarlyStopping(monitor='val_loss', patience=config.patience, mode='min', verbose=True)
+    early_stop = EarlyStopping(monitor='val_loss', patience=config.patience, min_delta=config.delta, mode='min', verbose=True)
     logger = TensorBoardLogger("logs", name=f"{name}_autoencoder")
     recon_cb = ReconstructionsCallback(test_loader, logger)
     trainer = pl.Trainer(max_epochs=config.epochs, callbacks=[early_stop, recon_cb], logger=logger)
@@ -68,7 +68,7 @@ def train_classifier(config, dataset, name, save_path):
         persistent_workers=False
     )
     model = Classifier(latent_dim=config.latent_dim, n_classes=dataset.n_classes)
-    early_stop = EarlyStopping(monitor='val_loss', patience=config.patience, mode='min', verbose=True)
+    early_stop = EarlyStopping(monitor='val_loss', patience=config.patience, min_delta=config.delta, mode='min', verbose=True)
     logger = TensorBoardLogger("logs", name=f"{name}_classifier")
     trainer = pl.Trainer(max_epochs=config.epochs, callbacks=[early_stop], logger=logger)
     trainer.fit(model, train_loader, test_loader)
