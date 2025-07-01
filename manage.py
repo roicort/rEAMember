@@ -170,11 +170,8 @@ def create_memories(config):
     path = f"experiments/{cfg.app.dataset}-{cfg.neural.latent_dim}"
     path = Path(path)
 
-    from reamember.dataset import EmbeddingDatasetWrapper
-
     embeddings_dataset = torch.load(path / "embeddings.pth", map_location=device, weights_only=False)
 
-    from reamember.eam.associative import AssociativeMemory
     from reamember.mops import memorize, remember
 
     eam = memorize(cfg, dataset=embeddings_dataset.test)
@@ -185,7 +182,7 @@ def create_memories(config):
 
     classifier = Classifier(
         input_shape=memories_features.shape[1:],
-        num_classes=embeddings_dataset.test.num_classes,
+        num_classes=embeddings_dataset.num_classes,
         latent_dim=cfg.neural.latent_dim
     )
     classifier_path = path / "classifier.pth"
