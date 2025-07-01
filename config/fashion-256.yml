@@ -11,6 +11,7 @@ neural:
   delta: 0.005
 
 memory:
+  domain: 256
   iota: 0.0
   kappa: 0.0
   xi: 0.0

@@ -14,7 +14,7 @@ from SPOTS.utils import SPOT10Loader
 
 # Custom Dataset
 
-class CustomDataset(Dataset):
+class CustomImageDataset(Dataset):
     def __init__(self, data, targets, transform=transforms.ToTensor(), target_transform=torch.tensor):
         self.data = data
         self.targets = targets
@@ -92,10 +92,13 @@ class ImageDatasetWrapper:
             images_train, targets_train = data_loader.get_data(dataset_dir=os.path.join('./data/SPOTS', "raw"), kind='train')
             images_test, targets_test = data_loader.get_data(dataset_dir=os.path.join('./data/SPOTS', "raw"), kind='test')
 
-            self.train = CustomDataset(images_train, targets_train)
-            self.test = CustomDataset(images_test, targets_test)
+            self.train = CustomImageDataset(images_train, targets_train)
+            self.test = CustomImageDataset(images_test, targets_test)
         else:
             raise ValueError(f"Dataset not supported: {dataset_name}")
+        
+class TextDatasetWrapper:
+    pass
 
 class EmbeddingDataset(Dataset):
     def __init__(self, embeddings, targets):

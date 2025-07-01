@@ -29,7 +29,7 @@ class AssociativeMemory(torch.nn.Module):
         self._iota = iota
         self._kappa = kappa
         self._scale = 1.0
-        self.device = device or (torch.device('cuda' if torch.cuda.is_available() else 'cpu'))
+        self.device = device 
         self._relation = torch.zeros((self._m, self._n), dtype=torch.int16, device=self.device)
         self._iota_relation = torch.zeros((self._m, self._n), dtype=torch.int16, device=self.device)
         self._entropies = torch.zeros(self._n, dtype=torch.float, device=self.device)

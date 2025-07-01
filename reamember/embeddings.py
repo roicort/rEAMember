@@ -3,7 +3,7 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 
-def eval(dataloader, autoencoder, device=None):
+def evalImage(dataloader, model, device=None):
     embeddings = []
     with torch.no_grad():
         for batch in tqdm(dataloader):
@@ -13,25 +13,31 @@ def eval(dataloader, autoencoder, device=None):
                 x = batch
                 y = None
             x = x.to(device)
-            z = autoencoder.encode(x)
+            z = model.encode(x)
             embeddings.append(z.cpu())
     embeddings = torch.cat(embeddings, dim=0)
     return embeddings
 
-def get_embeddings(autoencoder, dataset, device, save_path=None, batch_size=64, num_workers=2):
+def get_embeddings( model, dataset, device, modality='image', save_path=None, batch_size=64, num_workers=2):
     """
     Extrae embeddings usando el encoder y un dataset (no dataloader).
     Crea internamente el DataLoader para asegurar el batch correcto.
     """
-    autoencoder.eval()
+    model.eval()
     if device is not None:
-        autoencoder.to(device)
+        model.to(device)
 
     dataloader_train = DataLoader(dataset.train, batch_size=batch_size, shuffle=False, num_workers=num_workers)
     dataloader_test = DataLoader(dataset.test, batch_size=batch_size, shuffle=False, num_workers=num_workers)
 
-    embeddings_train = eval(dataloader_train, autoencoder, device)
-    embeddings_test = eval(dataloader_test, autoencoder, device)
+    if modality == 'text':
+        pass
+        #embeddings_train = evalText(dataloader_train, model, device)
+        #embeddings_test = evalText(dataloader_test, model, device)
+
+    elif modality == 'image':
+        embeddings_train = evalImage(dataloader_train, model, device)
+        embeddings_test = evalImage(dataloader_test, model, device)
 
     print("[INFO] Embeddings train shape:", embeddings_train.shape)
     print("[INFO] Embeddings test shape:", embeddings_test.shape)

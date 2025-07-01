@@ -7,7 +7,7 @@ from reamember.neuralnets.autoencoder import Autoencoder
 from reamember.neuralnets.classifier import Classifier
 import torchvision.utils as vutils
 
-class ReconstructionsCallback(pl.Callback):
+class ImageReconstructionCallback(pl.Callback):
     def __init__(self, val_loader, logger, every_n_epochs=5, max_images=8):
         super().__init__()
         self.val_loader = val_loader
@@ -48,10 +48,13 @@ def train_autoencoder(config, input_shape, dataset, name, save_path):
     model = Autoencoder(input_shape=input_shape, latent_dim=config.latent_dim)
     early_stop = EarlyStopping(monitor='val_loss', patience=config.patience, min_delta=config.delta, mode='min', verbose=True)
     logger = TensorBoardLogger("logs", name=f"{name}_autoencoder")
-    recon_cb = ReconstructionsCallback(test_loader, logger)
+    recon_cb = ImageReconstructionCallback(test_loader, logger)
     trainer = pl.Trainer(max_epochs=config.epochs, callbacks=[early_stop, recon_cb], logger=logger)
     trainer.fit(model, train_loader, test_loader)
     torch.save(model.state_dict(), save_path)
+
+def train_transformer():
+    pass  # Placeholder for transformer training logic
 
 def train_classifier(config, dataset, name, save_path):
     train_loader = DataLoader(
