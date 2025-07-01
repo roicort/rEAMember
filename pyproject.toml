@@ -26,6 +26,7 @@ dependencies = [
     "plotly>=6.1.2",
     "kaleido>=1.0.0",
     "pdoc>=15.0.4",
+    "rich-click>=1.8.9",
 ]
 
 [tool.uv.sources]

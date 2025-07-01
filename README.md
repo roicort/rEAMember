@@ -17,16 +17,11 @@ This command will generate embeddings for the dataset specified in the configura
 
 ## Available Commands
 
-Main
+Run: 
 
-- `get-embeddings`: Generate embeddings for the dataset specified in the configuration file.
-- `train-autoencoder`: Train the autoencoder model with the specified configuration file.
-- `train-classifier`: Train the classifier model with the specified configuration file.
-
-Utils
-
-- `run-tensorboard`: Start TensorBoard to visualize training metrics.
-- `clean-logs`: Clean the logs generated during experiments.
+```bash
+uv run manage.py --help
+```
 
 ## Docs
 
