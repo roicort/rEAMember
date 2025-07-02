@@ -32,6 +32,12 @@ class Classifier(pl.LightningModule):
 
     def forward(self, x):
         return self.net(x)
+    
+    def predict(self, x):
+        self.eval()
+        with torch.no_grad():
+            logits = self(x)
+            return logits.argmax(dim=1)
 
     def training_step(self, batch, batch_idx):
         x, y = batch

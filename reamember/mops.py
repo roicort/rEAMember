@@ -29,6 +29,7 @@ def memorize(cfg, dataset):
         sigma=cfg.memory.sigma,
         iota=cfg.memory.iota,
         kappa=cfg.memory.kappa,
+        device=dataset.data.device
     )
 
     print(f"[INFO] Memorizing {len(features_rounded)} features with shape {features_rounded.shape}...")
@@ -57,9 +58,14 @@ def remember(cfg, eam, dataset):
     print(f"[INFO] Remembering {len(features_rounded)} features with shape {features_rounded.shape}...")
     for feature in tqdm(features):
         memory, recognized, weight = eam.recall(feature)
+        memory = memory.cpu().numpy()
+        recognized = recognized.cpu().numpy()
+        weight = weight.cpu().numpy()
+
         memories_features.append(memory)
         memories_recognition.append(recognized)
         memories_weights.append(weight)
+
     memories_features = np.array(memories_features, dtype=float)
     memories_features = rsize_recall(memories_features, cfg.neural.latent_dim, min_value, max_value)
     memories_recognition = np.array(memories_recognition, dtype=int)

@@ -3,11 +3,12 @@ import torch
 import shutil
 import numpy as np
 import rich_click as click
+from tqdm import tqdm
 from pathlib import Path
 from omegaconf import OmegaConf
+from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
 
-
-help_config = click.RichHelpConfiguration(
+rich_conf = click.RichHelpConfiguration(
     style_option="bold cyan",
     style_argument="bold cyan",
     style_command="bold cyan",
@@ -30,7 +31,7 @@ from reamember.config import setConfig
 device = setConfig()
 
 @click.group()
-@click.rich_config(help_config=help_config)
+@click.rich_config(help_config=rich_conf)
 def cli():
     click.echo(f"[INFO] Using device: {device}")
     pass
@@ -38,7 +39,7 @@ def cli():
 @cli.command()
 @click.option('--config',  help='YAML configuration.')
 def train_autoencoder(config):
-    "Train autoencoder."
+    "🏃🏻‍♂️‍➡️ Train autoencoder."
     cfg = OmegaConf.load(config)
     click.echo(f"[INFO] Conf: {cfg}")
     path = f"experiments/{cfg.app.dataset}-{cfg.neural.latent_dim}"
@@ -77,7 +78,7 @@ def train_autoencoder(config):
 @cli.command()
 @click.option('--config',  help='YAML configuration.')
 def get_embeddings(config):
-    "Obtain embeddings from the encoder."
+    "📊 Obtain embeddings from the encoder."
     cfg = OmegaConf.load(config)
     click.echo(f"[INFO] Conf: {cfg}")
     path = f"experiments/{cfg.app.dataset}-{cfg.neural.latent_dim}"
@@ -112,7 +113,7 @@ def get_embeddings(config):
 @cli.command()
 @click.option('--config',  help='YAML configuration.')
 def train_classifier(config):
-    "Train classifier."
+    "🏃🏻‍♂️‍➡️ Train classifier."
     cfg = OmegaConf.load(config)
     click.echo(f"[INFO] Conf: {cfg}")
     path = f"experiments/{cfg.app.dataset}-{cfg.neural.latent_dim}"
@@ -131,11 +132,10 @@ def train_classifier(config):
         save_path=path / "classifier.pth"
     )
 
-
 @cli.command()
 @click.option('--config',  help='YAML configuration.')
 def test_autoencoder(config):
-    "Not implemented"
+    "⚠️ Not implemented"
     cfg = OmegaConf.load(config)
     click.echo(f"[INFO] Conf: {cfg}")
     path = f"experiments/{cfg.app.dataset}-{cfg.neural.latent_dim}"
@@ -163,8 +163,77 @@ def test_autoencoder(config):
 
 @cli.command()
 @click.option('--config',  help='YAML configuration.')
+def test_classifier(config):
+    "👨🏻‍🏫 Test the classifier on the test set."
+    cfg = OmegaConf.load(config)
+    click.echo(f"[INFO] Conf: {cfg}")
+    path = f"experiments/{cfg.app.dataset}-{cfg.neural.latent_dim}"
+    path = Path(path)
+
+    from reamember.dataset import EmbeddingDatasetWrapper
+
+    embeddings_dataset = torch.load(path / "embeddings.pth", map_location=device, weights_only=False)
+
+    from reamember.neuralnets.classifier import Classifier
+
+    classifier = Classifier(
+        latent_dim=cfg.neural.latent_dim,
+        n_classes=embeddings_dataset.n_classes,
+    )
+
+    classifier_path = path / "classifier.pth"
+    if classifier_path.exists():
+        click.echo(f"[INFO] Loading classifier from: {classifier_path}")
+        classifier.load_state_dict(torch.load(classifier_path, map_location=device))
+        classifier.to(device)
+    else:
+        click.echo(f"[ERROR] Classifier path does not exist: {classifier_path}")
+        sys.exit(1)
+
+    # Predict on the test set
+    click.echo("[INFO] Testing classifier...")
+
+    predictions = []
+
+    for f in tqdm(embeddings_dataset.test.data):
+        f = torch.as_tensor(f, dtype=torch.float32, device=device).unsqueeze(0)
+        predictions.append(classifier.predict(f).cpu().numpy())
+
+    predictions = np.concatenate(predictions, axis=0)
+    targets = embeddings_dataset.test.targets.cpu().numpy()
+
+    # Metrics
+    accuracy = accuracy_score(targets, predictions)
+    report = classification_report(targets, predictions, output_dict=True)
+
+    click.echo(f"[INFO] Accuracy: {accuracy}")
+    click.echo(f"[INFO] Classification Report: {report}")
+    
+    from plotly import graph_objects as go
+
+    cm = confusion_matrix(targets, predictions)
+    fig = go.Figure(data=go.Heatmap(
+        z=cm,
+        x=list(range(embeddings_dataset.n_classes)),
+        y=list(range(embeddings_dataset.n_classes)),
+        colorscale='Viridis',
+        colorbar=dict(title='Count')
+    ))
+    fig.update_layout(
+        title='Confusion Matrix',
+        xaxis_title='Predicted Class',
+        yaxis_title='True Class',
+        width=800,
+        height=800
+    )
+    fig_path = path / "classifier_confmat.html"
+    click.echo(f"[INFO] Saving confusion matrix to: {fig_path}")
+    fig.write_html(fig_path)
+
+@cli.command()
+@click.option('--config',  help='YAML configuration.')
 def create_memories(config):
-    "Create memories."
+    "🧠 Create memories."
     cfg = OmegaConf.load(config)
     click.echo(f"[INFO] Conf: {cfg}")
     path = f"experiments/{cfg.app.dataset}-{cfg.neural.latent_dim}"
@@ -177,14 +246,14 @@ def create_memories(config):
     eam = memorize(cfg, dataset=embeddings_dataset.test)
     memories_features, memories_recognition, memories_weights = remember(cfg, eam, dataset=embeddings_dataset.test)
 
-    # Classify memories
     from reamember.neuralnets.classifier import Classifier
 
     classifier = Classifier(
-        input_shape=memories_features.shape[1:],
-        num_classes=embeddings_dataset.num_classes,
-        latent_dim=cfg.neural.latent_dim
+        latent_dim=cfg.neural.latent_dim,
+        n_classes=embeddings_dataset.n_classes,
+
     )
+
     classifier_path = path / "classifier.pth"
     if classifier_path.exists():
         click.echo(f"[INFO] Loading classifier from: {classifier_path}")
@@ -193,24 +262,26 @@ def create_memories(config):
         click.echo(f"[ERROR] Classifier path does not exist: {classifier_path}")
         sys.exit(1) 
 
+    classifier.to(device)
     click.echo("[INFO] Classifying memories...")
-    memories_recognition = []
-    for features in memories_features:
-        pred = classifier.predict(features[None, ...]) 
-        memories_recognition.append(pred.cpu().numpy())
-    memories_recognition = np.concatenate(memories_recognition, axis=0)
 
+    memories_recognition = []
+
+    for f in tqdm(memories_features):
+        f = torch.as_tensor(f, dtype=torch.float32, device=device).unsqueeze(0)
+        memories_recognition.append(classifier.predict(f).cpu().numpy())
+
+    memories_recognition = np.concatenate(memories_recognition, axis=0)
     original_labels = embeddings_dataset.test.targets.cpu().numpy()
 
-    # Create and save confusion matrix
     from sklearn.metrics import confusion_matrix
     from plotly import graph_objects as go
 
     cm = confusion_matrix(original_labels, memories_recognition)
     fig = go.Figure(data=go.Heatmap(
         z=cm,
-        x=list(range(embeddings_dataset.test.num_classes)),
-        y=list(range(embeddings_dataset.test.num_classes)),
+        x=list(range(embeddings_dataset.n_classes)),
+        y=list(range(embeddings_dataset.n_classes)),
         colorscale='Viridis',
         colorbar=dict(title='Count')
     ))
@@ -221,7 +292,7 @@ def create_memories(config):
         width=800,
         height=800
     )
-    fig_path = path / "confusion_matrix.html"
+    fig_path = path / "memories_confmatrix.html"
     click.echo(f"[INFO] Saving confusion matrix to: {fig_path}")
     fig.write_html(fig_path)
 
@@ -235,7 +306,7 @@ def create_memories(config):
 @cli.command()
 @click.option('--config',  help='YAML configuration.')
 def dream(config):
-    "Not implemented"
+    "🛌 Not implemented"
     cfg = OmegaConf.load(config)
     click.echo(f"[INFO] Conf: {cfg}")
     path = f"experiments/{cfg.app.dataset}-{cfg.neural.latent_dim}"
@@ -267,6 +338,6 @@ def clean_logs():
         click.echo(f"[INFO] Logs cleaned: {log_path}")
     else:
         click.echo(f"[INFO] No logs to clean at: {log_path}")
+
 if __name__ == "__main__":
     cli()
-
