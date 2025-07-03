@@ -15,4 +15,4 @@ memory:
   iota: 0.0
   kappa: 0.0
   xi: 0.0
-  sigma: 0.0
+  sigma: 0.1

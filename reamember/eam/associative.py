@@ -1,8 +1,4 @@
 import torch
-import numpy as np
-from scipy.stats import norm
-import random
-
 
 class AssociativeMemory(torch.nn.Module):
     """
@@ -269,7 +265,7 @@ class AssociativeMemory(torch.nn.Module):
         vector = self.validate(vector)
         r_io = self.vector_to_relation(vector)
         r_io = self.containment(r_io)
-        recognized = torch.count_nonzero(not r_io[: self.m, : self.n]) <= self._t
+        recognized = torch.count_nonzero(r_io[: self.m, : self.n] == False ) <= self._t
         weight = self._weight(vector)
         recognized = recognized and (self.mean * self._kappa <= weight)
         return recognized, weight
@@ -278,7 +274,7 @@ class AssociativeMemory(torch.nn.Module):
         vector = self.validate(vector)
         r_io = self.vector_to_relation(vector)
         r_io = self.containment(r_io)
-        return torch.count_nonzero(not r_io[: self.m, : self.n])
+        return torch.count_nonzero(r_io[: self.m, : self.n] == False )
 
     def recall(self, vector):
         vector = self.validate(vector)
