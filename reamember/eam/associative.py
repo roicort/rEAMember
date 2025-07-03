@@ -5,7 +5,7 @@ class AssociativeMemory(torch.nn.Module):
     A PyTorch version of the Associative Memory.
     """
 
-    def __init__(self, n, m, xi=1, sigma=0.5, iota=1, kappa=1, device=None):
+    def __init__(self, n, m, xi=1, sigma=0.5, iota=0, kappa=0, device=None):
         """
         Parameters
         ----------
@@ -157,17 +157,12 @@ class AssociativeMemory(torch.nn.Module):
         self._means = (sums / counts) / self.max_value
 
     def _update_iota_relation(self):
-        for j in range(self._n):
-            column = self._relation[:, j]
-            sum = torch.sum(column)
-            if sum == 0:
-                self._iota_relation[:, j] = torch.zeros(
-                    self._m, dtype=torch.int16, device=self.device
-                )
-            else:
-                count = torch.count_nonzero(column)
-                mean = self.iota * sum / count
-                self._iota_relation[:, j] = torch.where(column < mean, 0, column)
+        columns = self._relation
+        sums = columns.sum(dim=0)
+        counts = torch.count_nonzero(columns, dim=0)
+        means = torch.where(counts == 0, 0, self.iota * sums / counts)
+        mask = columns < means.unsqueeze(0)
+        self._iota_relation = torch.where(mask, torch.zeros_like(columns), columns)
 
     def is_undefined(self, value):
         return value == self.undefined
@@ -202,19 +197,24 @@ class AssociativeMemory(torch.nn.Module):
         else:
             column = self._normalize(self.relation[:, j], v, self._sigma, self._scale)
         sum = column.sum()
+
         n = sum * torch.rand(1, device=self.device).item()
-        for i in range(self.m):
-            if n < column[i]:
-                return i
-            n -= column[i]
-        return self.m - 1
+
+        cumsum = torch.cumsum(column, dim=0)
+        idx = torch.searchsorted(cumsum, n)
+        return idx.item() if idx < self.m else self.m - 1
 
     def _weights(self, vector):
-        weights = []
-        for i in range(self.n):
-            w = 0 if self.is_undefined(vector[i]) else self.relation[vector[i], i]
-            weights.append(w)
-        return torch.tensor(weights, device=self.device)
+        # Vector debe estar en el dispositivo correcto y ser tipo long
+        vector = torch.as_tensor(vector, dtype=torch.long, device=self.device)
+        # Creamos una máscara para los valores definidos
+        mask = (vector != self.undefined)
+        # Inicializamos los pesos en cero
+        weights = torch.zeros(self.n, dtype=self._relation.dtype, device=self.device)
+        # Solo asignamos los pesos donde el valor no es undefined
+        idx = torch.arange(self.n, device=self.device)
+        weights[mask] = self._relation[vector[mask], idx[mask]]
+        return weights
 
     def _weight(self, vector):
         return torch.mean(self._weights(vector).float()) / self.max_value
@@ -245,11 +245,11 @@ class AssociativeMemory(torch.nn.Module):
                 "and given",
                 vector.size(0),
             )
-        vector = torch.as_tensor(vector, dtype=torch.float32, device=self.device)
-        v = torch.nan_to_num(vector, nan=self.undefined)
+        v = torch.as_tensor(vector, dtype=torch.int16, device=self.device)
+        v = torch.nan_to_num(v, nan=self.undefined)
         v = torch.where((v > self.m) | (v < 0), self.undefined, v)
-        return v.to(torch.int16)
-
+        return v
+    
     def revalidate(self, vector):
         v = vector.to(torch.float32)
         return torch.where(v == float(self.undefined), torch.nan, v)
