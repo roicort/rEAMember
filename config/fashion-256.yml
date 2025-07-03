@@ -7,7 +7,7 @@ neural:
   epochs: 50
   batch_size: 64
   learning_rate: 0.001
-  patience: 3
+  patience: 7
   delta: 0.005
 
 memory:

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-CONFIG="./config/SPOTS-256.yml"
+CONFIG="./config/fashion-256.yml"
 
 set -e
 
