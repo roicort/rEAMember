@@ -7,28 +7,29 @@ import torch.nn.functional as F
 class Classifier(pl.LightningModule):
     def __init__(
         self,
-        latent_dim,
-        n_classes,
-        hidden_dims=[256, 128, 128, 64],
-        dropout=0.3,
-        lr=1e-3,
-        weight_decay=1e-4,
-        scheduler_gamma=0.95
+        latent_dim: int,
+        n_classes: int,
+        hidden_dims=[512, 256, 128, 128, 128],
+        dropout: float = 0.3,
+        lr: float = 1e-3,
+        weight_decay: float = 1e-4,
+        scheduler_gamma: float = 0.95
     ):
         super().__init__()
+        self.lr = lr
+        self.dropout = dropout
+        self.weight_decay = weight_decay
+        self.scheduler_gamma = scheduler_gamma
         layers = []
         input_dim = latent_dim
         for h_dim in hidden_dims:
             layers.append(nn.Linear(input_dim, h_dim))
             layers.append(nn.BatchNorm1d(h_dim))
             layers.append(nn.ReLU())
-            layers.append(nn.Dropout(dropout))
+            layers.append(nn.Dropout(self.dropout))
             input_dim = h_dim
         layers.append(nn.Linear(input_dim, n_classes))
         self.net = nn.Sequential(*layers)
-        self.lr = lr
-        self.weight_decay = weight_decay
-        self.scheduler_gamma = scheduler_gamma
 
     def forward(self, x):
         return self.net(x)
@@ -55,6 +56,17 @@ class Classifier(pl.LightningModule):
         acc = (logits.argmax(dim=1) == y).float().mean()
         self.log("val_loss", loss, prog_bar=True)
         self.log("val_acc", acc, prog_bar=True)
+        return {"val_loss": loss, "val_acc": acc}
+
+    def test_step(self, batch, batch_idx):
+        x, y = batch
+        logits = self(x)
+        loss = F.cross_entropy(logits, y)
+        acc = (logits.argmax(dim=1) == y).float().mean()
+        self.log("test_loss", loss, prog_bar=True)
+        self.log("test_acc", acc, prog_bar=True)
+        return {"test_loss": loss, "test_acc": acc}
 
     def configure_optimizers(self):
-        return torch.optim.Adam(self.parameters(), lr=1e-3)
+        return torch.optim.Adam(self.parameters(), lr=self.lr, weight_decay=self.weight_decay)
+

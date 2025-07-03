@@ -17,7 +17,7 @@ class ImageReconstructionCallback(pl.Callback):
 
     def on_validation_epoch_end(self, trainer, pl_module):
         epoch = trainer.current_epoch
-        if epoch % self.every_n_epochs != 0:
+        if epoch >= self.every_n_epochs and epoch % self.every_n_epochs != 0:
             return
         pl_module.eval()
         with torch.no_grad():
