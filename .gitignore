@@ -183,6 +183,4 @@ cython_debug/
 # Custom
 
 .DS_Store
-!/data/SPOTS
 /logs
-/data
