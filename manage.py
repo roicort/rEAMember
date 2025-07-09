@@ -3,11 +3,13 @@ import torch
 import shutil
 import json
 import torchvision
+import pandas as pd
 import numpy as np
 import rich_click as click
 from tqdm import tqdm
 from pathlib import Path
 from omegaconf import OmegaConf
+import plotly.express as px
 from plotly import graph_objects as go
 from sklearn.metrics import confusion_matrix
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
@@ -16,6 +18,8 @@ from reamember.neuralnets.classifier import Classifier
 from reamember.dataset import ImageDatasetWrapper
 from reamember.neuralnets.autoencoder import Autoencoder
 from reamember.config import setConfig
+from reamember.eam.associative import AssociativeMemory
+from reamember.mops import memorize, evalm, remember
 
 ##########################################################################################
 # Config
@@ -306,6 +310,124 @@ def test(config):
 
 @cli.command()
 @click.option("--config", help="YAML configuration.")
+def get_bestparams(config):
+    "🔍 Search best memory sizes and filling percents."
+    cfg = OmegaConf.load(config)
+    click.echo(f"[INFO] Conf: {cfg}")
+    path = f"experiments/{cfg.app.dataset}-{cfg.neural.latent_dim}"
+    path = Path(path)
+
+    # Grid search over the memory size (m) and the filling percent.
+
+    msizes = [1, 2, 4, 8, 16, 32, 64, 128, 256]
+    filling_percents = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
+
+    # Dataset ------------------------------------------------------------
+
+    try:
+        click.echo(f"[INFO] Loading embeddings dataset from: {path / 'embeddings.pth'}")
+        embeddings_dataset = torch.load(
+        path / "embeddings.pth", map_location=device, weights_only=False
+        )
+    except FileNotFoundError:
+        click.echo(f"[ERROR] Embeddings file not found: {path / 'embeddings.pth'}")
+        click.echo("[INFO] Please run `get-embeddings` command first.")
+        sys.exit(1)
+
+    dataset = ImageDatasetWrapper(
+            dataset_name=cfg.app.dataset,
+    )
+
+    input_shape = dataset.train[0][0].shape
+    click.echo(f"[INFO] Input shape: {input_shape}")
+
+
+    # Classifier ------------------------------------------------------------
+
+    from reamember.neuralnets.classifier import Classifier
+
+    classifier = Classifier(
+        latent_dim=cfg.neural.latent_dim,
+        n_classes=embeddings_dataset.n_classes,
+    )
+
+    classifier_path = path / "classifier.pth"
+    if classifier_path.exists():
+        click.echo(f"[INFO] Loading classifier from: {classifier_path}")
+        classifier.load_state_dict(torch.load(classifier_path, map_location=device))
+    else:
+        click.echo(f"[ERROR] Classifier path does not exist: {classifier_path}")
+        sys.exit(1)
+
+    classifier.to(device)
+
+    # Decoder -----------------------------------------------------------------
+
+    decoder = Autoencoder(input_shape=input_shape, latent_dim=cfg.neural.latent_dim)
+    decoder_path = path / "autoencoder.pth"
+    if decoder_path.exists():
+        click.echo(f"[INFO] Loading decoder from: {decoder_path}")
+        decoder.load_state_dict(torch.load(decoder_path, map_location=device))
+    else:
+        click.echo(f"[ERROR] Decoder path does not exist: {decoder_path}")
+        sys.exit(1)
+    decoder.to(device)
+
+    # Search --------------------------------------------------------------------
+
+    results = []
+
+    for msize in tqdm(msizes):
+        for filling_percent in tqdm(filling_percents):
+            click.echo(f"[INFO] Testing msize={msize}, filling_percent={filling_percent}")
+
+            # Create a new memory instance with the current parameters
+            eam = AssociativeMemory(
+                n=cfg.memory.domain,
+                m=msize,
+                xi=cfg.memory.xi,
+                sigma=cfg.memory.sigma,
+                iota=cfg.memory.iota,
+                kappa=cfg.memory.kappa,
+                device=dataset.test.data.device
+            )
+
+            # Memorize the dataset
+            eam = memorize(eam, dataset=embeddings_dataset.test, filling_percent=filling_percent)
+            recognized, report = evalm(eam, classifier=classifier, dataset=embeddings_dataset.test)
+
+            results.append({
+                "msize": msize,
+                "filling_percent": filling_percent,
+                "recognized": recognized,
+                "accuracy": report.get("accuracy", 0),
+                "recall": report.get("recall", 0),
+                "precision": report.get("precision", 0),
+                "f1_score": report.get("f1_score", 0),
+            })
+
+    save_path = path / "bestparams_results.json"
+    click.echo(f"[INFO] Saving results to: {save_path}")
+    with open(save_path, "w") as f:
+        json.dump(results, f, indent=4)
+
+    df = pd.DataFrame(results)
+    heatmap_data = df.pivot(index="filling_percent", columns="msize", values="accuracy")
+
+    fig = px.imshow(
+        heatmap_data,
+        labels=dict(x="msize", y="filling_percent", color="Accuracy"),
+        x=heatmap_data.columns,
+        y=heatmap_data.index,
+        aspect="auto",
+        color_continuous_scale="Viridis"
+    )
+    fig.update_layout(title="Accuracy según msize y filling_percent")
+    fig.write_html(path / "bestparams_heatmap.html")
+        
+
+@cli.command()
+@click.option("--config", help="YAML configuration.")
 def create_memories(config):
     "🧠 Create memories."
     cfg = OmegaConf.load(config)
@@ -330,9 +452,9 @@ def create_memories(config):
 
     from reamember.mops import memorize, remember
 
-    eam = memorize(cfg, dataset=embeddings_dataset.test)
+    eam = memorize(dataset=embeddings_dataset.test)
     memories_features, memories_recognition, memories_weights = remember(
-        cfg, eam, dataset=embeddings_dataset.test
+        eam, dataset=embeddings_dataset.test
     )
 
     # Classifier ------------------------------------------------------------
