@@ -1,10 +1,12 @@
 import torch
 import numpy as np
 from tqdm import tqdm
-from sklearn.metrics import classification_report
-from .eam.associative import AssociativeMemory
+from sklearn.metrics import accuracy_score
 
 def rsize_recall(recall, msize, min_value, max_value):
+    if not torch.is_tensor(recall):
+        min_value = min_value.item() if torch.is_tensor(min_value) else min_value
+        max_value = max_value.item() if torch.is_tensor(max_value) else max_value
     if (msize == 1):
         return (recall.astype(dtype=float) + 1.0)*(max_value - min_value)/2
     else:
@@ -50,9 +52,9 @@ def remember(cfg, eam, dataset):
     print(f"[INFO] Remembering {len(features_rounded)} features with shape {features_rounded.shape}...")
     for feature in tqdm(features_rounded):
         memory, recognized, weight = eam.recall(feature)
-        memory = memory.cpu().numpy()
-        recognized = recognized.cpu().numpy()
-        weight = weight.cpu().numpy()
+        memory = memory.cpu().numpy() if torch.is_tensor(memory) else memory
+        recognized = recognized.cpu().numpy() if torch.is_tensor(recognized) else recognized
+        weight = weight.cpu().numpy() if torch.is_tensor(weight) else weight
 
         memories_features.append(memory)
         memories_recognition.append(recognized)
@@ -80,27 +82,42 @@ def evalm(eam, classifier, dataset):
     print(f"[INFO] Evaluating {len(features_rounded)} features with shape {features_rounded.shape}...")
 
     answers = []
+    unrecognized_count = 0
     
     for feature in tqdm(features_rounded):
         memory, recognized, weight = eam.recall(feature)
-        print(memory, recognized, weight)
         if recognized:
-            memory = memory.cpu().numpy()
-            memory = rsize_recall(memory, eam.size(), min_value, max_value)
+            memory = memory.cpu().numpy() if torch.is_tensor(memory) else memory
+            memory = rsize_recall(memory, eam.m, min_value, max_value)
             with torch.no_grad():
-                prediction = classifier.predict(memory)
+                memory = torch.tensor(memory, dtype=torch.float32, device=classifier.device).unsqueeze(0) if not isinstance(memory, torch.Tensor) else memory.unsqueeze(0)
+                prediction = classifier.predict(memory).cpu().numpy()[0]
         else:
             prediction = None # No prediction if not recognized
+            unrecognized_count += 1
 
         answers.append(prediction)
 
     # Results
 
-    answers = np.array(answers, dtype=object)
-    recognized_percentage = np.sum(answers != None) / len(answers) * 100
-    predictions = answers[answers != None]
-    labels = labels[answers != None]
-    report = classification_report(labels, predictions, output_dict=True)
+    recognized_percentage = (1 - unrecognized_count / len(features_rounded)) * 100
+    print(f"[INFO] Recognized percentage: {recognized_percentage:.2f}%")
+    print(f"[INFO] Unrecognized count: {unrecognized_count}")
 
-    return recognized_percentage, report
+    answers = np.array(answers)
+    mask = answers != None
+    predictions = answers[mask]
+    labels = labels[mask]
+    accuracy = []
+    if len(predictions) == len(labels) and len(predictions) > 0:
+        for i in range(len(predictions)):
+            if predictions[i] == labels[i]:
+                accuracy.append(1)
+            else:
+                accuracy.append(0)
+
+    accuracy_score = np.mean(accuracy) if accuracy else 0.0
+    print(f"[INFO] Accuracy: {accuracy_score:.2f}")
+
+    return recognized_percentage, accuracy_score
 

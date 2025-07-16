@@ -14,11 +14,12 @@ from plotly import graph_objects as go
 from sklearn.metrics import confusion_matrix
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
 
+from reamember.eam.associative import NumpyAssociativeMemory as AssociativeMemory # Change to TorchAssociativeMemory if you want to use PyTorch version
+
 from reamember.neuralnets.classifier import Classifier
 from reamember.dataset import ImageDatasetWrapper
 from reamember.neuralnets.autoencoder import Autoencoder
 from reamember.config import setConfig
-from reamember.eam.associative import AssociativeMemory
 from reamember.mops import memorize, evalm, remember
 
 ##########################################################################################
@@ -319,7 +320,7 @@ def get_bestparams(config):
 
     # Grid search over the memory size (m) and the filling percent.
 
-    msizes = [1, 2, 4, 8, 16, 32, 64, 128, 256]
+    msizes = [1, 2, 4, 8, 16, 32, 64, 128, 256, 512]
     filling_percents = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
 
     # Dataset ------------------------------------------------------------
@@ -383,27 +384,24 @@ def get_bestparams(config):
 
             # Create a new memory instance with the current parameters
             eam = AssociativeMemory(
-                n=cfg.memory.domain,
+                n=cfg.neural.latent_dim,
                 m=msize,
                 xi=cfg.memory.xi,
                 sigma=cfg.memory.sigma,
                 iota=cfg.memory.iota,
                 kappa=cfg.memory.kappa,
-                device=dataset.test.data.device
+                device=device
             )
 
             # Memorize the dataset
             eam = memorize(eam, dataset=embeddings_dataset.test, filling_percent=filling_percent)
-            recognized, report = evalm(eam, classifier=classifier, dataset=embeddings_dataset.test)
+            recognized, accuracy = evalm(eam, classifier=classifier, dataset=embeddings_dataset.test)
 
             results.append({
                 "msize": msize,
                 "filling_percent": filling_percent,
                 "recognized": recognized,
-                "accuracy": report.get("accuracy", 0),
-                "recall": report.get("recall", 0),
-                "precision": report.get("precision", 0),
-                "f1_score": report.get("f1_score", 0),
+                "accuracy": accuracy,
             })
 
     save_path = path / "bestparams_results.json"
@@ -450,11 +448,22 @@ def create_memories(config):
 
     # Memory ---------------------------------------------------------------
 
-    from reamember.mops import memorize, remember
+    eam = AssociativeMemory(
+        n=cfg.neural.latent_dim,
+        m=cfg.memory.domain,
+        xi=cfg.memory.xi,
+        sigma=cfg.memory.sigma,
+        iota=cfg.memory.iota,
+        kappa=cfg.memory.kappa,
+        device=device
+    )
 
-    eam = memorize(dataset=embeddings_dataset.test)
-    memories_features, memories_recognition, memories_weights = remember(
-        eam, dataset=embeddings_dataset.test
+
+    eam = memorize(eam, dataset=embeddings_dataset.test)
+    
+    memories_features, memories_recognition, memories_weights = remember(cfg,
+        eam=eam,
+        dataset=embeddings_dataset.test
     )
 
     # Classifier ------------------------------------------------------------
