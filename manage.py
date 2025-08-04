@@ -14,7 +14,8 @@ from plotly import graph_objects as go
 from sklearn.metrics import confusion_matrix
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
 
-from reamember.eam.associative import NumpyAssociativeMemory as AssociativeMemory # Change to TorchAssociativeMemory if you want to use PyTorch version
+# Can be changed to TorchAssociativeMemory or NumpyAssociativeMemory
+from reamember.eam.associative import TorchAssociativeMemory as AssociativeMemory 
 
 from reamember.neuralnets.classifier import Classifier
 from reamember.dataset import ImageDatasetWrapper
@@ -320,8 +321,8 @@ def get_bestparams(config):
 
     # Grid search over the memory size (m) and the filling percent.
 
-    msizes = [1, 2, 4, 8, 16, 32, 64, 128, 256, 512]
-    filling_percents = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
+    msizes = [128, 256, 512]
+    filling_percents = [1.0]
 
     # Dataset ------------------------------------------------------------
 
@@ -394,7 +395,7 @@ def get_bestparams(config):
             )
 
             # Memorize the dataset
-            eam = memorize(eam, dataset=embeddings_dataset.test, filling_percent=filling_percent)
+            eam = memorize(eam, dataset=embeddings_dataset.train, filling_percent=filling_percent)
             recognized, accuracy = evalm(eam, classifier=classifier, dataset=embeddings_dataset.test)
 
             results.append({

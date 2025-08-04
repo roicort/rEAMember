@@ -197,12 +197,10 @@ class TorchAssociativeMemory(torch.nn.Module):
         relation[vector, torch.arange(self.n, device=self.device)] = True
         return relation
 
-    def _normalize(self, column, mean, std, scale):
-        norm = torch.tensor(
-            [self.normpdf(i, mean, std, scale) for i in range(self.m)],
-            device=self.device,
-        )
-        return norm * column
+    def _normalize(self, columns, means, std, scale):
+        row_indices = torch.arange(self.m, device=self.device).unsqueeze(1) # Crear un vector columna de índices: [m, 1]
+        norm_weights = self.normpdf(row_indices, means, std, scale) # Calcular los pesos para todas las columnas a la vez usando broadcasting
+        return norm_weights * columns # Multiplicar todas las columnas por sus respectivos pesos a la vez
 
     def normalized(self, j, v):
         return self._normalize(self.relation[:, j], v, self._sigma, self._scale)
@@ -234,24 +232,47 @@ class TorchAssociativeMemory(torch.nn.Module):
         return ~r_io[: self.m, :] | self.iota_relation
 
     def lreduce(self, vector):
-        """Reduces a relation to a function."""
-        # Obtiene todas las columnas de la relación (matriz de tamaño [m, n])
-        columns = self.relation[:, torch.arange(self.n, device=self.device)]
-        # Suma las columnas para obtener un vector de tamaño [n]
-        sum_ = columns.sum(dim=0)
-        # Genera un número aleatorio entre 0 y la suma de cada columna (vector de tamaño [n])
-        rand = sum_ * torch.rand(self.n, device=self.device)
-        # Calcula la suma acumulativa de las columnas (matriz de tamaño [m, n])
-        cumsum = torch.cumsum(columns, dim=0)  # [m, n]
+        """Reduces a relation to a function, using the input vector to guide the sampling."""
         
-        # Para cada columna, busca el índice donde la suma acumulada supera el número aleatorio generado
-        # Esto equivale a muestrear un valor según la distribución de la columna
+        # 1. Preparar las columnas y el vector de entrada
+        columns = self.relation.float()  # Usar float para la multiplicación
+        
+        # 2. Crear una máscara para los valores definidos en el vector de entrada
+        defined_mask = ~self.is_undefined(vector)
+        
+        # 3. Normalizar solo las columnas donde el vector de entrada tiene un valor definido
+        if torch.any(defined_mask):
+            # Seleccionar las columnas y medias correspondientes a valores definidos
+            cols_to_norm = columns[:, defined_mask]
+            means_for_norm = vector[defined_mask].float()
+            
+            # Aplicar normalización vectorizada
+            normalized_cols = self._normalize(cols_to_norm, means_for_norm, self._sigma, self._scale)
+            
+            # Actualizar las columnas en la matriz original
+            columns[:, defined_mask] = normalized_cols
+
+        # 4. Realizar el muestreo (igual que antes, pero sobre las columnas ponderadas)
+        sum_ = columns.sum(dim=0)
+        
+        # Evitar división por cero o NaNs si una columna suma cero
+        sum_ = torch.where(sum_ == 0, 1.0, sum_)
+        
+        rand = sum_ * torch.rand(self.n, device=self.device)
+        cumsum = torch.cumsum(columns, dim=0)
+        
+        # 5. Encontrar los índices de las filas donde el valor acumulado supera el valor aleatorio
+        # torch.searchsorted devuelve el índice donde insertar el valor para mantener el orden
+        # Usamos torch.stack para crear un tensor de índices para cada columna
+        # y torch.where para limitar el índice al rango válido
+        
         idx = torch.stack([
             torch.searchsorted(cumsum[:, i].contiguous(), rand[i])
             for i in range(self.n)
         ])
-        # Si el índice es mayor o igual que m, lo limita a m-1 (última fila válida)
-        idx = torch.where(idx < self.m, idx, self.m - 1)
+        
+        # Limitar el índice al rango válido
+        idx = torch.where(idx >= self.m, self.m - 1, idx)
         return idx
 
     def validate(self, vector):
