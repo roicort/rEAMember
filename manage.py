@@ -321,8 +321,8 @@ def get_bestparams(config):
 
     # Grid search over the memory size (m) and the filling percent.
 
-    msizes = [128, 256, 512]
-    filling_percents = [1.0]
+    msizes = [1,2,4,8,16,32,64,128,256,512]
+    filling_percents = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
 
     # Dataset ------------------------------------------------------------
 

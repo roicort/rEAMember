@@ -1,4 +1,7 @@
 import torch
+import math
+import numpy as np
+import random
 
 class TorchAssociativeMemory(torch.nn.Module):
     """
@@ -339,10 +342,6 @@ class TorchAssociativeMemory(torch.nn.Module):
 #    http://www.apache.org/licenses/LICENSE-2.0
 #
 # File originally create by Raul Peralta-Lozada.
-
-import math
-import numpy as np
-import random
 
 
 class NumpyAssociativeMemory(object):
