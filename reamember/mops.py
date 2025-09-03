@@ -61,7 +61,7 @@ def remember(cfg, eam, dataset):
         memories_weights.append(weight)
 
     memories_features = np.array(memories_features, dtype=float)
-    memories_features = rsize_recall(memories_features, cfg.neural.latent_dim, min_value, max_value)
+    memories_features = rsize_recall(memories_features, cfg.neural.latent_dim, min_value, max_value) # Check
     memories_recognition = np.array(memories_recognition, dtype=int)
     memories_weights = np.array(memories_weights, dtype=float)
 
@@ -108,16 +108,19 @@ def evalm(eam, classifier, dataset):
     mask = answers != None
     predictions = answers[mask]
     labels = labels[mask]
-    accuracy = []
+    true_positive = 0
     if len(predictions) == len(labels) and len(predictions) > 0:
         for i in range(len(predictions)):
             if predictions[i] == labels[i]:
-                accuracy.append(1)
+                true_positive += 1
             else:
-                accuracy.append(0)
+                true_positive += 0
 
-    accuracy_score = np.mean(accuracy) if accuracy else 0.0
-    print(f"[INFO] Accuracy: {accuracy_score:.2f}")
+    recall = true_positive / len(answers)
+    precision = true_positive / (len(answers) - unrecognized_count)
 
-    return recognized_percentage, accuracy_score
+    print(f"[INFO] Recall: {recall:.2f}")
+    print(f"[INFO] Precision: {precision:.2f}")
+
+    return recognized_percentage, recall, precision
 
