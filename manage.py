@@ -1,3 +1,12 @@
+##########################################################################################
+# rEAMember                                                                              #
+##########################################################################################
+
+# A framework for experimenting with the EAM.
+
+#--------------------------------------------------------------
+# Base
+
 import sys
 import torch
 import shutil
@@ -11,12 +20,23 @@ from pathlib import Path
 from omegaconf import OmegaConf
 import plotly.express as px
 from plotly import graph_objects as go
-from sklearn.metrics import confusion_matrix
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
+
+#--------------------------------------------------------------
+# Rich 
+
+from rich.table import Table
+from rich.console import Console
+from rich import box
+from rich.panel import Panel
+from rich.columns import Columns
+from collections.abc import Mapping
+
+#--------------------------------------------------------------
+# EAM
 
 # Can be changed to TorchAssociativeMemory or NumpyAssociativeMemory
 from reamember.eam.associative import TorchAssociativeMemory as AssociativeMemory 
-
 from reamember.neuralnets.classifier import Classifier
 from reamember.dataset import ImageDatasetWrapper
 from reamember.neuralnets.autoencoder import Autoencoder
@@ -74,6 +94,54 @@ def classifier():
     pass
 
 #--------------------------------------------------------------
+# Format Utils
+
+def config_summary(cfg):
+    """
+    Summarize the configuration.
+    """
+    # To python native types
+    cfg_container = OmegaConf.to_container(cfg, resolve=True)
+
+    def format_value(value):
+        if isinstance(value, float):
+            return f"{value:.6g}"
+        if value is None:
+            return "null"
+        if isinstance(value, (list, tuple)):
+            simple = all(not isinstance(x, (dict, list, tuple)) for x in value)
+            return ", ".join(map(str, value)) if len(value) <= 10 and simple else f"[{len(value)} items]"
+        if isinstance(value, dict):
+            return json.dumps(value, ensure_ascii=False)
+        return str(value)
+
+    def section_panel(title: str, data: dict) -> Panel:
+        sub = Table(box=box.MINIMAL_HEAVY_HEAD)
+        sub.add_column("Parameter", style="bold cyan")
+        sub.add_column("Value", style="magenta")
+        for k, v in data.items():
+            sub.add_row(str(k), format_value(v))
+        return Panel(sub, title=f"[bold]{title}[/bold]", border_style="dim")
+
+    # Si existen secciones conocidas, mostrar subtables anidadas
+    sections = [
+        k for k in ("app", "neural", "memory")
+        if k in cfg_container and isinstance(cfg_container[k], Mapping)
+    ]
+
+    if sections:
+        panels = [section_panel(sec, cfg_container[sec]) for sec in sections]
+
+        outer = Panel(
+            Columns(panels, expand=True, equal=True),
+            title="[bold]config[/bold]",
+            border_style="cyan",
+            padding=(0, 1),
+            expand=True,
+        )
+        Console().print(outer)
+
+#--------------------------------------------------------------
 # Autoencoder Commands
 
 @autoencoder.command()
@@ -81,7 +149,7 @@ def classifier():
 def train(config):
     "🏃🏻‍♂️‍➡️ Train autoencoder."
     cfg = OmegaConf.load(config)
-    click.echo(f"[INFO] Conf: {cfg}")
+    config_summary(cfg)
     path = f"experiments/{cfg.app.dataset}-{cfg.neural.latent_dim}"
     path = Path(path)
     if not path.exists():
@@ -120,7 +188,7 @@ def train(config):
 def test(config):
     "Test autoencoder."
     cfg = OmegaConf.load(config)
-    click.echo(f"[INFO] Conf: {cfg}")
+    config_summary(cfg)
     path = f"experiments/{cfg.app.dataset}-{cfg.neural.latent_dim}"
     path = Path(path)
 
@@ -175,7 +243,7 @@ def test(config):
 def get_embeddings(config):
     "📊 Obtain embeddings from the encoder."
     cfg = OmegaConf.load(config)
-    click.echo(f"[INFO] Conf: {cfg}")
+    config_summary(cfg)
     path = f"experiments/{cfg.app.dataset}-{cfg.neural.latent_dim}"
     path = Path(path)
 
@@ -212,7 +280,7 @@ def get_embeddings(config):
 def train(config):
     "🏃🏻‍♂️‍➡️ Train classifier."
     cfg = OmegaConf.load(config)
-    click.echo(f"[INFO] Conf: {cfg}")
+    config_summary(cfg)
     path = f"experiments/{cfg.app.dataset}-{cfg.neural.latent_dim}"
     path = Path(path)
 
@@ -239,7 +307,7 @@ def train(config):
 def test(config):
     "👨🏻‍🏫 Test the classifier on the test set."
     cfg = OmegaConf.load(config)
-    click.echo(f"[INFO] Conf: {cfg}")
+    config_summary(cfg)
     path = f"experiments/{cfg.app.dataset}-{cfg.neural.latent_dim}"
     path = Path(path)
 
@@ -315,14 +383,14 @@ def test(config):
 def get_bestparams(config):
     "🔍 Search best memory sizes and filling percents."
     cfg = OmegaConf.load(config)
-    click.echo(f"[INFO] Conf: {cfg}")
+    config_summary(cfg)
     path = f"experiments/{cfg.app.dataset}-{cfg.neural.latent_dim}"
     path = Path(path)
 
     # Grid search over the memory size (m) and the filling percent.
 
-    msizes = [1,2,4,8,16,32,64,128,256,512]
-    filling_percents = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
+    msizes = [1,2,4,8,16,32] # Check 
+    filling_percents = [1.0, 2.0, 4.0, 8.0, 16.0, 32.0, 64.0, 100.0]
 
     # Dataset ------------------------------------------------------------
 
@@ -396,13 +464,14 @@ def get_bestparams(config):
 
             # Memorize the dataset
             eam = memorize(eam, dataset=embeddings_dataset.train, filling_percent=filling_percent)
-            recognized, accuracy = evalm(eam, classifier=classifier, dataset=embeddings_dataset.test)
+            recognized, recall, precision = evalm(eam, classifier=classifier, dataset=embeddings_dataset.test)
 
             results.append({
                 "msize": msize,
                 "filling_percent": filling_percent,
                 "recognized": recognized,
-                "accuracy": accuracy,
+                "recall": recall,
+                "precision": precision,
             })
 
     save_path = path / "bestparams_results.json"
@@ -430,7 +499,7 @@ def get_bestparams(config):
 def create_memories(config):
     "🧠 Create memories."
     cfg = OmegaConf.load(config)
-    click.echo(f"[INFO] Conf: {cfg}")
+    config_summary(cfg)
     path = f"experiments/{cfg.app.dataset}-{cfg.neural.latent_dim}"
     path = Path(path)
 
@@ -515,7 +584,7 @@ def create_memories(config):
             memories_recognition.append(
                 classifier.predict(f).cpu().numpy()
             )
-            torchvision.utils.save_image(decoder.decode(f).cpu(), reconstructedImgPath / f"img_{i}.png")
+            torchvision.utils.save_image(decoder.decode(f).cpu(), reconstructedImgPath / f"img_{i}.png") # Check
 
     # Logs --------------------------------------------------------------------
 
@@ -556,7 +625,7 @@ def create_memories(config):
 def dream(config):
     "🛌 Not implemented"
     cfg = OmegaConf.load(config)
-    click.echo(f"[INFO] Conf: {cfg}")
+    config_summary(cfg)
     path = f"experiments/{cfg.app.dataset}-{cfg.neural.latent_dim}"
     path = Path(path)
     pass
@@ -599,3 +668,5 @@ cli.add_command(classifier)
 
 if __name__ == "__main__":
     cli()
+
+#########################################################################
