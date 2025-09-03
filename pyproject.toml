@@ -3,7 +3,7 @@ name = "rEAMember"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.13"
 dependencies = [
     "docopt",
     "pypng",
@@ -21,7 +21,7 @@ dependencies = [
     "torchvision>=0.22.1",
     "pytorch-lightning>=2.5.2",
     "ipykernel>=6.29.5",
-    "tensorboard>=2.19.0",
+    "tensorboard==2.20.0",
     "scikit-learn>=1.7.0",
     "plotly>=6.1.2",
     "kaleido>=1.0.0",
