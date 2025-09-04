@@ -31,7 +31,7 @@ class ImageReconstructionCallback(pl.Callback):
             trainer.logger.experiment.add_image('Reconstructions', grid, epoch)
         pl_module.train()
 
-def train_autoencoder(config, input_shape, dataset, name, save_path):
+def train_autoencoder(config, dim, input_shape, dataset, name, save_path):
     train_loader = DataLoader(
         dataset.train,
         batch_size=config.batch_size,
@@ -45,7 +45,7 @@ def train_autoencoder(config, input_shape, dataset, name, save_path):
         num_workers=4,
         persistent_workers=True
     )
-    model = Autoencoder(input_shape=input_shape, latent_dim=config.latent_dim)
+    model = Autoencoder(input_shape=input_shape, latent_dim=dim)
     early_stop = EarlyStopping(monitor='val_loss', patience=config.patience, min_delta=config.delta, mode='min', verbose=True)
     logger = TensorBoardLogger("logs", name=f"{name}_autoencoder")
     recon_cb = ImageReconstructionCallback(test_loader, logger)
@@ -56,7 +56,7 @@ def train_autoencoder(config, input_shape, dataset, name, save_path):
 def train_transformer():
     pass  # Placeholder for transformer training logic
 
-def train_classifier(config, dataset, name, save_path):
+def train_classifier(config, dim, dataset, name, save_path):
     train_loader = DataLoader(
         dataset.train,
         batch_size=config.batch_size,
@@ -70,7 +70,7 @@ def train_classifier(config, dataset, name, save_path):
         num_workers=0,
         persistent_workers=False
     )
-    model = Classifier(latent_dim=config.latent_dim, n_classes=dataset.n_classes)
+    model = Classifier(latent_dim=dim, n_classes=dataset.n_classes)
     early_stop = EarlyStopping(monitor='val_loss', patience=config.patience, min_delta=config.delta, mode='min', verbose=True)
     logger = TensorBoardLogger("logs", name=f"{name}_classifier")
     trainer = pl.Trainer(max_epochs=config.epochs, callbacks=[early_stop], logger=logger)

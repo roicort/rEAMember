@@ -150,11 +150,8 @@ def train(config):
     "🏃🏻‍♂️‍➡️ Train autoencoder."
     cfg = OmegaConf.load(config)
     config_summary(cfg)
-    path = f"experiments/{cfg.app.dataset}-{cfg.neural.latent_dim}"
-    path = Path(path)
-    if not path.exists():
-        click.echo(f"[INFO] Creating path: {path}")
-        path.mkdir(parents=True, exist_ok=True)
+
+    from reamember.train import train_autoencoder
 
     # Load Dataset from Defaults
     if cfg.app.dataset == "Custom":
@@ -173,15 +170,21 @@ def train(config):
     input_shape = dataset.train[0][0].shape
     click.echo(f"[INFO] Input shape: {input_shape}")
 
-    from reamember.train import train_autoencoder
+    for latent in cfg.neural.latent_dim:
+        path = f"experiments/{cfg.app.dataset}/latent_{latent}"
+        path = Path(path)
+        if not path.exists():
+            click.echo(f"[INFO] Creating path: {path}")
+            path.mkdir(parents=True, exist_ok=True)
 
-    train_autoencoder(
-        config=cfg.neural,
-        input_shape=input_shape,
-        dataset=dataset,
-        name=f"{cfg.app.dataset}-{cfg.neural.latent_dim}",
-        save_path=path / "autoencoder.pth",
-    )
+        train_autoencoder(
+            config=cfg.neural,
+            dim=latent,
+            input_shape=input_shape,
+            dataset=dataset,
+            name=f"{cfg.app.dataset}-{latent}",
+            save_path=path / "autoencoder.pth",
+        )
 
 @autoencoder.command()
 @click.option("--config", help="YAML configuration.")
@@ -189,8 +192,6 @@ def test(config):
     "Test autoencoder."
     cfg = OmegaConf.load(config)
     config_summary(cfg)
-    path = f"experiments/{cfg.app.dataset}-{cfg.neural.latent_dim}"
-    path = Path(path)
 
     from reamember.dataset import ImageDatasetWrapper
 
@@ -202,38 +203,46 @@ def test(config):
 
     input_shape = dataset.test[0][0].shape
 
-    autoencoder = Autoencoder(input_shape=input_shape, latent_dim=cfg.neural.latent_dim)
-    encoder_path = path / "autoencoder.pth"
-    if encoder_path.exists():
-        click.echo(f"[INFO] Loading encoder from: {encoder_path}")
-        autoencoder.load_state_dict(torch.load(encoder_path, map_location=device))
-        autoencoder.to(device)
-    else:
-        click.echo(f"[ERROR] Encoder path does not exist: {encoder_path}")
-        sys.exit(1)
+    for latent in cfg.neural.latent_dim:
+        path = f"experiments/{cfg.app.dataset}/latent_{latent}"
+        path = Path(path)
+
+        autoencoder = Autoencoder(input_shape=input_shape, latent_dim=latent)
+        encoder_path = path / "autoencoder.pth"
+
+        if encoder_path.exists():
+            click.echo(f"[INFO] Loading encoder from: {encoder_path}")
+            autoencoder.load_state_dict(torch.load(encoder_path, map_location=device))
+            autoencoder.to(device)
+        else:
+            click.echo(f"[ERROR] Encoder does not exist in: {encoder_path}")
+            sys.exit(1)
     
-    try:
-        embeddings_dataset = torch.load(
-            path / "embeddings.pth", map_location=device, weights_only=False
-        )
-    except FileNotFoundError:
-        click.echo(f"[ERROR] Embeddings file not found: {path / 'embeddings.pth'}")
-        click.echo("[INFO] Please run `get-embeddings` command first.")
-        sys.exit(1)
+        try:
+            embeddings_dataset = torch.load(
+                path / "embeddings.pth", map_location=device, weights_only=False
+            )
+        except FileNotFoundError:
+            click.echo(f"[ERROR] Embeddings file not found: {path / 'embeddings.pth'}")
+            click.echo("[INFO] Please run `get-embeddings` command first.")
+            sys.exit(1)
 
-    reconstructedImgPath = Path(path / "reconstructed")
-    if not reconstructedImgPath.exists():
-        click.echo(f"[INFO] Creating path: {reconstructedImgPath}")
-        reconstructedImgPath.mkdir(parents=True, exist_ok=True)
+        reconstructedImgPath = Path(path / "reconstructed")
+        if not reconstructedImgPath.exists():
+            click.echo(f"[INFO] Creating path: {reconstructedImgPath}")
+            reconstructedImgPath.mkdir(parents=True, exist_ok=True)
 
-    for i in tqdm(range(len(embeddings_dataset.test.data))):
-        f = torch.as_tensor(embeddings_dataset.test.data[i], dtype=torch.float32, device=device).unsqueeze(0)
-        with torch.no_grad():
-            reconstructed = autoencoder.decode(f)
-            # Save image using torchvision.utils.save_image
-            torchvision.utils.save_image(reconstructed, reconstructedImgPath / f"img_{i}.png")
+        for i in tqdm(range(len(embeddings_dataset.test.data))):
+            f = torch.as_tensor(embeddings_dataset.test.data[i], dtype=torch.float32, device=device).unsqueeze(0)
+            with torch.no_grad():
+                reconstructed = autoencoder.decode(f)
+                # Save image using torchvision.utils.save_image
+                torchvision.utils.save_image(reconstructed, reconstructedImgPath / f"img_{i}.png")
 
-    click.echo(f"[INFO] Reconstructed images saved to: {reconstructedImgPath}")
+        click.echo(f"[INFO] Reconstructed images saved to: {reconstructedImgPath}")
+
+    # Done
+    click.echo("[INFO] Autoencoder testing completed.")
 
 #--------------------------------------------------------------
 # Embedding Commands
@@ -242,13 +251,13 @@ def test(config):
 @click.option("--config", help="YAML configuration.")
 def get_embeddings(config):
     "📊 Obtain embeddings from the encoder."
+
+    from reamember.embeddings import get_embeddings
+
     cfg = OmegaConf.load(config)
     config_summary(cfg)
-    path = f"experiments/{cfg.app.dataset}-{cfg.neural.latent_dim}"
-    path = Path(path)
 
     # Load Dataset
-
     click.echo(f"[INFO] Loading dataset: {cfg.app.dataset}")
 
     dataset = ImageDatasetWrapper(
@@ -257,20 +266,25 @@ def get_embeddings(config):
 
     input_shape = dataset.train[0][0].shape
 
-    # Load Autoencoder
+    for latent in cfg.neural.latent_dim:
+        path = f"experiments/{cfg.app.dataset}/latent_{latent}"
+        path = Path(path)
 
-    encoder = Autoencoder(input_shape=input_shape, latent_dim=cfg.neural.latent_dim)
-    encoder_path = path / "autoencoder.pth"
-    if encoder_path.exists():
-        click.echo(f"[INFO] Loading encoder from: {encoder_path}")
-        encoder.load_state_dict(torch.load(encoder_path, map_location=device))
-    else:
-        click.echo(f"[ERROR] Encoder path does not exist: {encoder_path}")
-        sys.exit(1)
+        # Load Autoencoder
 
-    from reamember.embeddings import get_embeddings
+        encoder = Autoencoder(input_shape=input_shape, latent_dim=latent)
+        encoder_path = path / "autoencoder.pth"
+        if encoder_path.exists():
+            click.echo(f"[INFO] Loading encoder from: {encoder_path}")
+            encoder.load_state_dict(torch.load(encoder_path, map_location=device))
+        else:
+            click.echo(f"[ERROR] Encoder path does not exist: {encoder_path}")
+            sys.exit(1)
 
-    get_embeddings(encoder, dataset, device=device, save_path=path)
+        get_embeddings(encoder, dataset, device=device, save_path=path)
+
+    # Done
+    click.echo("[INFO] Embeddings obtained.")
 
 #--------------------------------------------------------------
 # Classifier Commands
@@ -279,28 +293,34 @@ def get_embeddings(config):
 @click.option("--config", help="YAML configuration.")
 def train(config):
     "🏃🏻‍♂️‍➡️ Train classifier."
-    cfg = OmegaConf.load(config)
-    config_summary(cfg)
-    path = f"experiments/{cfg.app.dataset}-{cfg.neural.latent_dim}"
-    path = Path(path)
-
-    try:
-        embeddings_dataset = torch.load(
-            path / "embeddings.pth", map_location=device, weights_only=False
-        )
-    except FileNotFoundError:
-        click.echo(f"[ERROR] Embeddings file not found: {path / 'embeddings.pth'}")
-        click.echo("[INFO] Please run `get-embeddings` command first.")
-        sys.exit(1)
 
     from reamember.train import train_classifier
+    
+    cfg = OmegaConf.load(config)
+    config_summary(cfg)
 
-    train_classifier(
-        config=cfg.neural,
-        dataset=embeddings_dataset,
-        name=f"{cfg.app.dataset}-{cfg.neural.latent_dim}",
-        save_path=path / "classifier.pth",
-    )
+    for latent in cfg.neural.latent_dim:
+        path = f"experiments/{cfg.app.dataset}/latent_{latent}"
+        path = Path(path)
+
+        try:
+            embeddings_dataset = torch.load(
+                path / "embeddings.pth", map_location=device, weights_only=False
+            )
+        except FileNotFoundError:
+            click.echo(f"[ERROR] Embeddings file not found: {path / 'embeddings.pth'}")
+            click.echo("[INFO] Please run `get-embeddings` command first.")
+            sys.exit(1)
+
+        train_classifier(
+            config=cfg.neural,
+            dim=latent,
+            dataset=embeddings_dataset,
+            name=f"{cfg.app.dataset}-{latent}",
+            save_path=path / "classifier.pth",
+        )
+
+    click.echo("[INFO] Classifier training completed.")
 
 @classifier.command()
 @click.option("--config", help="YAML configuration.")
@@ -308,72 +328,73 @@ def test(config):
     "👨🏻‍🏫 Test the classifier on the test set."
     cfg = OmegaConf.load(config)
     config_summary(cfg)
-    path = f"experiments/{cfg.app.dataset}-{cfg.neural.latent_dim}"
-    path = Path(path)
 
-    embeddings_dataset = torch.load(
-        path / "embeddings.pth", map_location=device, weights_only=False
-    )
+    for latent in cfg.neural.latent_dim:
+        path = f"experiments/{cfg.app.dataset}/latent_{latent}"
+        path = Path(path)
 
-    classifier = Classifier(
-        latent_dim=cfg.neural.latent_dim,
-        n_classes=embeddings_dataset.n_classes,
-    )
-
-    classifier_path = path / "classifier.pth"
-    if classifier_path.exists():
-        click.echo(f"[INFO] Loading classifier from: {classifier_path}")
-        classifier.load_state_dict(torch.load(classifier_path, map_location=device))
-        classifier.to(device)
-    else:
-        click.echo(f"[ERROR] Classifier path does not exist: {classifier_path}")
-        sys.exit(1)
-
-    # Predict on the test set
-    click.echo("[INFO] Testing classifier...")
-
-    predictions = []
-
-    for f in tqdm(embeddings_dataset.test.data):
-        f = torch.as_tensor(f, dtype=torch.float32, device=device).unsqueeze(0)
-        predictions.append(classifier.predict(f).cpu().numpy())
-
-    predictions = np.concatenate(predictions, axis=0)
-    targets = embeddings_dataset.test.targets.cpu().numpy()
-
-    # Metrics
-    accuracy = accuracy_score(targets, predictions)
-    report = classification_report(targets, predictions, output_dict=True)
-
-    click.echo(f"[INFO] Accuracy: {accuracy}")
-    click.echo(f"[INFO] Classification Report: {report}")
-
-    # Save the classification report
-    report_path = path / "classification_report.json"
-    click.echo(f"[INFO] Saving classification report to: {report_path}")
-    with open(report_path, "w") as f:
-        json.dump(report, f, indent=4)
-
-    cm = confusion_matrix(targets, predictions)
-    fig = go.Figure(
-        data=go.Heatmap(
-            z=cm,
-            x=list(range(embeddings_dataset.n_classes)),
-            y=list(range(embeddings_dataset.n_classes)),
-            colorscale="Viridis",
-            colorbar=dict(title="Count"),
+        embeddings_dataset = torch.load(
+            path / "embeddings.pth", map_location=device, weights_only=False
         )
-    )
-    fig.update_layout(
-        title="Confusion Matrix",
-        xaxis_title="Predicted Class",
-        yaxis_title="True Class",
-        width=800,
-        height=800,
-    )
-    fig_path = path / "classifier_confmatrix.html"
-    click.echo(f"[INFO] Saving confusion matrix to: {fig_path}")
-    fig.write_html(fig_path)
+
+        classifier = Classifier(
+            latent_dim=latent,
+            n_classes=embeddings_dataset.n_classes,
+        )
+
+        classifier_path = path / "classifier.pth"
+        if classifier_path.exists():
+            click.echo(f"[INFO] Loading classifier from: {classifier_path}")
+            classifier.load_state_dict(torch.load(classifier_path, map_location=device))
+            classifier.to(device)
+        else:
+            click.echo(f"[ERROR] Classifier path does not exist: {classifier_path}")
+            sys.exit(1)
+
+        predictions = []
+
+        for f in tqdm(embeddings_dataset.test.data):
+            f = torch.as_tensor(f, dtype=torch.float32, device=device).unsqueeze(0)
+            predictions.append(classifier.predict(f).cpu().numpy())
+
+        predictions = np.concatenate(predictions, axis=0)
+        targets = embeddings_dataset.test.targets.cpu().numpy()
+
+        # Metrics
+        accuracy = accuracy_score(targets, predictions)
+        report = classification_report(targets, predictions, output_dict=True)
+
+        click.echo(f"[INFO] {latent} Accuracy: {accuracy}")
+        click.echo(f"[INFO] {latent} Classification Report: {report}")
+
+        # Save the classification report
+        report_path = path / "classification_report.json"
+        click.echo(f"[INFO] Saving classification report to: {report_path}")
+        with open(report_path, "w") as f:
+            json.dump(report, f, indent=4)
+
+        cm = confusion_matrix(targets, predictions)
+        fig = go.Figure(
+            data=go.Heatmap(
+                z=cm,
+                x=list(range(embeddings_dataset.n_classes)),
+                y=list(range(embeddings_dataset.n_classes)),
+                colorscale="Viridis",
+                colorbar=dict(title="Count"),
+            )
+        )
+        fig.update_layout(
+            title="Confusion Matrix",
+            xaxis_title="Predicted Class",
+            yaxis_title="True Class",
+            width=800,
+            height=800,
+        )
+        fig_path = path / "classifier_confmatrix.html"
+        click.echo(f"[INFO] Saving confusion matrix to: {fig_path}")
+        fig.write_html(fig_path)
+
+    click.echo(f"[INFO] Classifier testing completed.")
 
 #--------------------------------------------------------------
 # Memory Commands
@@ -384,115 +405,117 @@ def get_bestparams(config):
     "🔍 Search best memory sizes and filling percents."
     cfg = OmegaConf.load(config)
     config_summary(cfg)
-    path = f"experiments/{cfg.app.dataset}-{cfg.neural.latent_dim}"
-    path = Path(path)
-
-    # Grid search over the memory size (m) and the filling percent.
-
-    msizes = [1,2,4,8,16,32] # Check 
-    filling_percents = [1.0, 2.0, 4.0, 8.0, 16.0, 32.0, 64.0, 100.0]
-
-    # Dataset ------------------------------------------------------------
-
-    try:
-        click.echo(f"[INFO] Loading embeddings dataset from: {path / 'embeddings.pth'}")
-        embeddings_dataset = torch.load(
-        path / "embeddings.pth", map_location=device, weights_only=False
-        )
-    except FileNotFoundError:
-        click.echo(f"[ERROR] Embeddings file not found: {path / 'embeddings.pth'}")
-        click.echo("[INFO] Please run `get-embeddings` command first.")
-        sys.exit(1)
-
-    dataset = ImageDatasetWrapper(
-            dataset_name=cfg.app.dataset,
-    )
-
-    input_shape = dataset.train[0][0].shape
-    click.echo(f"[INFO] Input shape: {input_shape}")
-
-
-    # Classifier ------------------------------------------------------------
 
     from reamember.neuralnets.classifier import Classifier
 
-    classifier = Classifier(
-        latent_dim=cfg.neural.latent_dim,
-        n_classes=embeddings_dataset.n_classes,
-    )
+    for latent in cfg.neural.latent_dim:
+        path = f"experiments/{cfg.app.dataset}/latent_{latent}"
+        path = Path(path)
 
-    classifier_path = path / "classifier.pth"
-    if classifier_path.exists():
-        click.echo(f"[INFO] Loading classifier from: {classifier_path}")
-        classifier.load_state_dict(torch.load(classifier_path, map_location=device))
-    else:
-        click.echo(f"[ERROR] Classifier path does not exist: {classifier_path}")
-        sys.exit(1)
+        # Grid search over the memory size (m) and the filling percent.
 
-    classifier.to(device)
+        msizes = cfg.memory.domain
+        filling_percents = cfg.memory.filling
 
-    # Decoder -----------------------------------------------------------------
+        # Dataset ------------------------------------------------------------
 
-    decoder = Autoencoder(input_shape=input_shape, latent_dim=cfg.neural.latent_dim)
-    decoder_path = path / "autoencoder.pth"
-    if decoder_path.exists():
-        click.echo(f"[INFO] Loading decoder from: {decoder_path}")
-        decoder.load_state_dict(torch.load(decoder_path, map_location=device))
-    else:
-        click.echo(f"[ERROR] Decoder path does not exist: {decoder_path}")
-        sys.exit(1)
-    decoder.to(device)
-
-    # Search --------------------------------------------------------------------
-
-    results = []
-
-    for msize in tqdm(msizes):
-        for filling_percent in tqdm(filling_percents):
-            click.echo(f"[INFO] Testing msize={msize}, filling_percent={filling_percent}")
-
-            # Create a new memory instance with the current parameters
-            eam = AssociativeMemory(
-                n=cfg.neural.latent_dim,
-                m=msize,
-                xi=cfg.memory.xi,
-                sigma=cfg.memory.sigma,
-                iota=cfg.memory.iota,
-                kappa=cfg.memory.kappa,
-                device=device
+        try:
+            click.echo(f"[INFO] Loading embeddings dataset from: {path / 'embeddings.pth'}")
+            embeddings_dataset = torch.load(
+            path / "embeddings.pth", map_location=device, weights_only=False
             )
+        except FileNotFoundError:
+            click.echo(f"[ERROR] Embeddings file not found: {path / 'embeddings.pth'}")
+            click.echo("[INFO] Please run `get-embeddings` command first.")
+            sys.exit(1)
 
-            # Memorize the dataset
-            eam = memorize(eam, dataset=embeddings_dataset.train, filling_percent=filling_percent)
-            recognized, recall, precision = evalm(eam, classifier=classifier, dataset=embeddings_dataset.test)
+        dataset = ImageDatasetWrapper(
+                dataset_name=cfg.app.dataset,
+        )
 
-            results.append({
-                "msize": msize,
-                "filling_percent": filling_percent,
-                "recognized": recognized,
-                "recall": recall,
-                "precision": precision,
-            })
+        input_shape = dataset.train[0][0].shape
+        click.echo(f"[INFO] Input shape: {input_shape}")
 
-    save_path = path / "bestparams_results.json"
-    click.echo(f"[INFO] Saving results to: {save_path}")
-    with open(save_path, "w") as f:
-        json.dump(results, f, indent=4)
 
-    df = pd.DataFrame(results)
-    heatmap_data = df.pivot(index="filling_percent", columns="msize", values="accuracy")
+        # Classifier ------------------------------------------------------------
 
-    fig = px.imshow(
-        heatmap_data,
-        labels=dict(x="msize", y="filling_percent", color="Accuracy"),
-        x=heatmap_data.columns,
-        y=heatmap_data.index,
-        aspect="auto",
-        color_continuous_scale="Viridis"
-    )
-    fig.update_layout(title="Accuracy según msize y filling_percent")
-    fig.write_html(path / "bestparams_heatmap.html")
-        
+        classifier = Classifier(
+            latent_dim=latent,
+            n_classes=embeddings_dataset.n_classes,
+        )
+
+        classifier_path = path / "classifier.pth"
+        if classifier_path.exists():
+            click.echo(f"[INFO] Loading classifier from: {classifier_path}")
+            classifier.load_state_dict(torch.load(classifier_path, map_location=device))
+            classifier.to(device)
+        else:
+            click.echo(f"[ERROR] Classifier path does not exist: {classifier_path}")
+            sys.exit(1)
+
+        # Decoder -----------------------------------------------------------------
+
+        decoder = Autoencoder(input_shape=input_shape, latent_dim=latent)
+        decoder_path = path / "autoencoder.pth"
+        if decoder_path.exists():
+            click.echo(f"[INFO] Loading decoder from: {decoder_path}")
+            decoder.load_state_dict(torch.load(decoder_path, map_location=device))
+            decoder.to(device)
+        else:
+            click.echo(f"[ERROR] Decoder path does not exist: {decoder_path}")
+            sys.exit(1)
+
+        # Search --------------------------------------------------------------------
+
+        results = []
+
+        for msize in tqdm(msizes):
+            for filling_percent in tqdm(filling_percents):
+                click.echo(f"[INFO] Testing msize={msize}, filling_percent={filling_percent}")
+
+                # Create a new memory instance with the current parameters
+                eam = AssociativeMemory(
+                    n=latent,
+                    m=msize,
+                    xi=cfg.memory.xi,
+                    sigma=cfg.memory.sigma,
+                    iota=cfg.memory.iota,
+                    kappa=cfg.memory.kappa,
+                    device=device
+                )
+
+                # Memorize the dataset
+                eam = memorize(eam, dataset=embeddings_dataset.train, filling_percent=filling_percent)
+                recognized, recall, precision = evalm(eam, classifier=classifier, dataset=embeddings_dataset.test)
+
+                results.append({
+                    "msize": msize,
+                    "filling_percent": filling_percent,
+                    "recognized": recognized,
+                    "precision": precision,
+                    "recall": recall
+                })
+
+        save_path = path / "bestparams_results.json"
+        click.echo(f"[INFO] Saving results to: {save_path}")
+        with open(save_path, "w") as f:
+            json.dump(results, f, indent=4)
+
+        df = pd.DataFrame(results)
+        heatmap_data = df.pivot(index="filling_percent", columns="msize", values="precision")
+
+        fig = px.imshow(
+            heatmap_data,
+            labels=dict(x="msize", y="filling_percent", color="Precision"),
+            x=heatmap_data.columns,
+            y=heatmap_data.index,
+            aspect="auto",
+            color_continuous_scale="Viridis"
+        )
+        fig.update_layout(title="Accuracy según msize y filling_percent")
+        fig.write_html(path / "bestparams_heatmap.html")
+
+    click.echo("[INFO] Best parameters search completed.")
 
 @cli.command()
 @click.option("--config", help="YAML configuration.")
@@ -500,124 +523,124 @@ def create_memories(config):
     "🧠 Create memories."
     cfg = OmegaConf.load(config)
     config_summary(cfg)
-    path = f"experiments/{cfg.app.dataset}-{cfg.neural.latent_dim}"
-    path = Path(path)
 
-    # Dataset ------------------------------------------------------------
+    for latent in cfg.neural.latent_dim:
+        path = f"experiments/{cfg.app.dataset}/latent_{latent}"
+        path = Path(path)
 
-    embeddings_dataset = torch.load(
-        path / "embeddings.pth", map_location=device, weights_only=False
-    )
+        # Dataset ------------------------------------------------------------
 
-    dataset = ImageDatasetWrapper(
-            dataset_name=cfg.app.dataset,
+        embeddings_dataset = torch.load(
+            path / "embeddings.pth", map_location=device, weights_only=False
         )
 
-    input_shape = dataset.train[0][0].shape
-    click.echo(f"[INFO] Input shape: {input_shape}")
-
-    # Memory ---------------------------------------------------------------
-
-    eam = AssociativeMemory(
-        n=cfg.neural.latent_dim,
-        m=cfg.memory.domain,
-        xi=cfg.memory.xi,
-        sigma=cfg.memory.sigma,
-        iota=cfg.memory.iota,
-        kappa=cfg.memory.kappa,
-        device=device
-    )
-
-
-    eam = memorize(eam, dataset=embeddings_dataset.test)
-    
-    memories_features, memories_recognition, memories_weights = remember(cfg,
-        eam=eam,
-        dataset=embeddings_dataset.test
-    )
-
-    # Classifier ------------------------------------------------------------
-
-    from reamember.neuralnets.classifier import Classifier
-
-    classifier = Classifier(
-        latent_dim=cfg.neural.latent_dim,
-        n_classes=embeddings_dataset.n_classes,
-    )
-
-    classifier_path = path / "classifier.pth"
-    if classifier_path.exists():
-        click.echo(f"[INFO] Loading classifier from: {classifier_path}")
-        classifier.load_state_dict(torch.load(classifier_path, map_location=device))
-    else:
-        click.echo(f"[ERROR] Classifier path does not exist: {classifier_path}")
-        sys.exit(1)
-
-    classifier.to(device)
-
-    # Decoder -----------------------------------------------------------------
-
-    decoder = Autoencoder(input_shape=input_shape, latent_dim=cfg.neural.latent_dim)
-    decoder_path = path / "autoencoder.pth"
-    if decoder_path.exists():
-        click.echo(f"[INFO] Loading decoder from: {decoder_path}")
-        decoder.load_state_dict(torch.load(decoder_path, map_location=device))
-    else:
-        click.echo(f"[ERROR] Decoder path does not exist: {decoder_path}")
-        sys.exit(1)
-    decoder.to(device)
-
-    # Inference ---------------------------------------------------------------
-
-    reconstructedImgPath = Path(path / "memory_reconstructed")
-    if not reconstructedImgPath.exists():
-        click.echo(f"[INFO] Creating path: {reconstructedImgPath}")
-        reconstructedImgPath.mkdir(parents=True, exist_ok=True)
-
-    click.echo("[INFO] Classifying memories...")
-
-    memories_recognition = []
-
-    for i in tqdm(range(len(memories_features))):
-        f = torch.as_tensor(memories_features[i], dtype=torch.float32, device=device).unsqueeze(0)
-        with torch.no_grad():
-            memories_recognition.append(
-                classifier.predict(f).cpu().numpy()
+        dataset = ImageDatasetWrapper(
+                dataset_name=cfg.app.dataset,
             )
-            torchvision.utils.save_image(decoder.decode(f).cpu(), reconstructedImgPath / f"img_{i}.png") # Check
 
-    # Logs --------------------------------------------------------------------
+        input_shape = dataset.train[0][0].shape
+        click.echo(f"[INFO] Input shape: {input_shape}")
 
-    memories_recognition = np.concatenate(memories_recognition, axis=0)
-    original_labels = embeddings_dataset.test.targets.cpu().numpy()
+        # Memory ---------------------------------------------------------------
 
-    cm = confusion_matrix(original_labels, memories_recognition)
-    fig = go.Figure(
-        data=go.Heatmap(
-            z=cm,
-            x=list(range(embeddings_dataset.n_classes)),
-            y=list(range(embeddings_dataset.n_classes)),
-            colorscale="Viridis",
-            colorbar=dict(title="Count"),
+        eam = AssociativeMemory(
+            n=latent,
+            m=int(cfg.memory.domain[0]),
+            xi=cfg.memory.xi,
+            sigma=cfg.memory.sigma,
+            iota=cfg.memory.iota,
+            kappa=cfg.memory.kappa,
+            device=device
         )
-    )
-    fig.update_layout(
-        title="Confusion Matrix",
-        xaxis_title="Predicted Class",
-        yaxis_title="True Class",
-        width=800,
-        height=800,
-    )
-    fig_path = path / "memories_confmatrix.html"
-    click.echo(f"[INFO] Saving confusion matrix to: {fig_path}")
-    fig.write_html(fig_path)
 
-    # click.echo(f"[INFO] Saving memories to: {path / 'memories.pth'}")
-    # torch.save({
-    #    'features': memories_features,
-    #    'recognition': memories_recognition,
-    #    'weights': memories_weights
-    # }, path / "memories.pth")
+        eam = memorize(eam, dataset=embeddings_dataset.test)
+    
+        memories_features, memories_recognition, _ = remember(cfg,
+            eam=eam,
+            dataset=embeddings_dataset.test
+        )
+
+        # Classifier ------------------------------------------------------------
+
+        from reamember.neuralnets.classifier import Classifier
+
+        classifier = Classifier(
+            latent_dim=cfg.neural.latent_dim,
+            n_classes=embeddings_dataset.n_classes,
+        )
+
+        classifier_path = path / "classifier.pth"
+        if classifier_path.exists():
+            click.echo(f"[INFO] Loading classifier from: {classifier_path}")
+            classifier.load_state_dict(torch.load(classifier_path, map_location=device))
+            classifier.to(device)
+        else:
+            click.echo(f"[ERROR] Classifier path does not exist: {classifier_path}")
+            sys.exit(1)
+
+        # Decoder -----------------------------------------------------------------
+
+        decoder = Autoencoder(input_shape=input_shape, latent_dim=cfg.neural.latent_dim)
+        decoder_path = path / "autoencoder.pth"
+        if decoder_path.exists():
+            click.echo(f"[INFO] Loading decoder from: {decoder_path}")
+            decoder.load_state_dict(torch.load(decoder_path, map_location=device))
+            decoder.to(device)
+        else:
+            click.echo(f"[ERROR] Decoder path does not exist: {decoder_path}")
+            sys.exit(1)
+
+        # Inference ---------------------------------------------------------------
+
+        reconstructedImgPath = Path(path / f"dim{cfg.memory.domain[0]}_memory_reconstructed")
+        if not reconstructedImgPath.exists():
+            click.echo(f"[INFO] Creating path: {reconstructedImgPath}")
+            reconstructedImgPath.mkdir(parents=True, exist_ok=True)
+
+        click.echo("[INFO] Classifying memories...")
+
+        memories_recognition = []
+
+        for i in tqdm(range(len(memories_features))):
+            f = torch.as_tensor(memories_features[i], dtype=torch.float32, device=device).unsqueeze(0)
+            with torch.no_grad():
+                memories_recognition.append(
+                    classifier.predict(f).cpu().numpy()
+                )
+                torchvision.utils.save_image(decoder.decode(f).cpu(), reconstructedImgPath / f"img_{i}.png") # Check
+
+        # Logs --------------------------------------------------------------------
+
+        memories_recognition = np.concatenate(memories_recognition, axis=0)
+        original_labels = embeddings_dataset.test.targets.cpu().numpy()
+
+        cm = confusion_matrix(original_labels, memories_recognition)
+        fig = go.Figure(
+            data=go.Heatmap(
+                z=cm,
+                x=list(range(embeddings_dataset.n_classes)),
+                y=list(range(embeddings_dataset.n_classes)),
+                colorscale="Viridis",
+                colorbar=dict(title="Count"),
+            )
+        )
+        fig.update_layout(
+            title="Confusion Matrix",
+            xaxis_title="Predicted Class",
+            yaxis_title="True Class",
+            width=800,
+            height=800,
+        )
+        fig_path = path / "memories_confmatrix.html"
+        click.echo(f"[INFO] Saving confusion matrix to: {fig_path}")
+        fig.write_html(fig_path)
+
+        # click.echo(f"[INFO] Saving memories to: {path / 'memories.pth'}")
+        # torch.save({
+        #    'features': memories_features,
+        #    'recognition': memories_recognition,
+        #    'weights': memories_weights
+        # }, path / "memories.pth")
 
 
 @cli.command()
@@ -626,7 +649,7 @@ def dream(config):
     "🛌 Not implemented"
     cfg = OmegaConf.load(config)
     config_summary(cfg)
-    path = f"experiments/{cfg.app.dataset}-{cfg.neural.latent_dim}"
+    path = f"experiments/{cfg.app.dataset}/latent_{cfg.neural.latent_dim}"
     path = Path(path)
     pass
 

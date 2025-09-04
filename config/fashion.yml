@@ -1,9 +1,9 @@
 app:
-  dataset: SPOTS
+  dataset: FashionMNIST
   modality: image
 
 neural:
-  latent_dim: 256
+  latent_dim: [64, 128, 256, 512]
   epochs: 50
   batch_size: 64
   learning_rate: 0.001
@@ -11,7 +11,8 @@ neural:
   delta: 0.005
 
 memory:
-  domain: 256
+  domain: [4, 8, 16, 32, 64, 128]
+  filling: [0.8, 1.0]
   iota: 0.0
   kappa: 0.0
   xi: 0.0
