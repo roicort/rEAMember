@@ -82,7 +82,6 @@ def evalm(eam, classifier, dataset):
     print(f"[INFO] Evaluating {len(features_rounded)} features with shape {features_rounded.shape}...")
 
     answers = []
-    unrecognized_count = 0
     
     for feature in tqdm(features_rounded):
         memory, recognized, weight = eam.recall(feature)
@@ -94,33 +93,33 @@ def evalm(eam, classifier, dataset):
                 prediction = classifier.predict(memory).cpu().numpy()[0]
         else:
             prediction = None # No prediction if not recognized
-            unrecognized_count += 1
 
         answers.append(prediction)
 
     # Results
 
-    recognized_percentage = (1 - unrecognized_count / len(features_rounded)) * 100
-    print(f"[INFO] Recognized percentage: {recognized_percentage:.2f}%")
-    print(f"[INFO] Unrecognized count: {unrecognized_count}")
-
     answers = np.array(answers)
-    mask = answers != None
-    predictions = answers[mask]
-    labels = labels[mask]
+    recognized = answers is not None
+    predictions = answers[recognized]
+    labels = labels[recognized]
+
     true_positive = 0
+    error_count = 0
     if len(predictions) == len(labels) and len(predictions) > 0:
         for i in range(len(predictions)):
             if predictions[i] == labels[i]:
                 true_positive += 1
             else:
-                true_positive += 0
+                error_count += 1
+
+    recognized_count = np.sum(recognized)
+    unrecognized_count = len(answers) - recognized_count
+    recognized_percentage = recognized_count / len(answers)
+    unrecognized_percentage = unrecognized_count / len(answers)
+    correct_count_percentage = true_positive / len(predictions)
+    incorrect_count_percentage = error_count / len(predictions)
 
     recall = true_positive / len(answers)
-    precision = true_positive / (len(answers) - unrecognized_count)
+    precision = true_positive / (len(answers) - unrecognized_count) if (len(answers) - unrecognized_count) > 0 else 0.0
 
-    print(f"[INFO] Recall: {recall:.2f}")
-    print(f"[INFO] Precision: {precision:.2f}")
-
-    return recognized_percentage, recall, precision
-
+    return [recognized_percentage, unrecognized_percentage, correct_count_percentage, incorrect_count_percentage], recall, precision

@@ -408,6 +408,8 @@ def get_bestparams(config):
 
     from reamember.neuralnets.classifier import Classifier
 
+    global_results = []
+
     for latent in cfg.neural.latent_dim:
         path = f"experiments/{cfg.app.dataset}/latent_{latent}"
         path = Path(path)
@@ -486,34 +488,117 @@ def get_bestparams(config):
 
                 # Memorize the dataset
                 eam = memorize(eam, dataset=embeddings_dataset.train, filling_percent=filling_percent)
-                recognized, recall, precision = evalm(eam, classifier=classifier, dataset=embeddings_dataset.test)
+                percentages, recall, precision = evalm(eam, classifier=classifier, dataset=embeddings_dataset.test)
 
                 results.append({
+                    "latent": latent,
                     "msize": msize,
                     "filling_percent": filling_percent,
-                    "recognized": recognized,
                     "precision": precision,
-                    "recall": recall
+                    "recall": recall,
+                    "recognized": percentages[0],
+                    "unrecognized": percentages[1],
+                    "correct": percentages[2],
+                    "incorrect": percentages[3]
                 })
 
-        save_path = path / "bestparams_results.json"
-        click.echo(f"[INFO] Saving results to: {save_path}")
-        with open(save_path, "w") as f:
-            json.dump(results, f, indent=4)
+        #.................................................................       
 
         df = pd.DataFrame(results)
-        heatmap_data = df.pivot(index="filling_percent", columns="msize", values="precision")
+        
+        fig = go.Figure(data=go.Scatter(
+            x=df['msize'],
+            y=df['precision'],
+            mode='markers+lines',
+            marker=dict(size=10, color=df['msize'], colorscale='Viridis', showscale=True, colorbar=dict(title='Memory Size (m)')),
+            text=[f"m={row['msize']}, precision={row['precision']:.4f}, recall={row['recall']:.4f}" for _, row in df.iterrows()],
+            hoverinfo='text'
+        ))
 
-        fig = px.imshow(
-            heatmap_data,
-            labels=dict(x="msize", y="filling_percent", color="Precision"),
-            x=heatmap_data.columns,
-            y=heatmap_data.index,
-            aspect="auto",
-            color_continuous_scale="Viridis"
+        fig.add_scatter(
+            x=df['msize'],
+            y=df['recall'],
+            mode='markers+lines',
+            marker=dict(size=10, color='red'),
+            text=[f"m={row['msize']}, precision={row['precision']:.4f}, recall={row['recall']:.4f}" for _, row in df.iterrows()],
+            hoverinfo='text',
+            name='Recall'
         )
-        fig.update_layout(title="Accuracy según msize y filling_percent")
-        fig.write_html(path / "bestparams_heatmap.html")
+
+        fig.update_layout(
+            title=f'Precision and Recall vs Memory Size (latent={latent})',
+            xaxis_title='Memory Size (m)',
+            yaxis_title='Value',
+            legend_title='Metrics',
+            width=900,
+            height=600
+        )
+
+        fig_path = path / "scores_mparams.html"
+        click.echo(f"[INFO] Saving grid search results plot to: {fig_path}")
+        fig.write_html(fig_path)
+
+        #................................................................. 
+        # Bar plot of Correct response, incorrect and no response
+
+        fig = go.Figure()
+        fig.add_trace(go.Bar(
+            x=df['msize'],
+            y=df['recognized'],
+            name='Recognized',
+            marker_color='indigo'
+        ))
+        fig.add_trace(go.Bar(
+            x=df['msize'],
+            y=df['unrecognized'],
+            name='Unrecognized',
+            marker_color='lightgray'
+        ))
+        fig.add_trace(go.Bar(
+            x=df['msize'],
+            y=df['correct'],
+            name='Correct',
+            marker_color='green'
+        ))
+        fig.add_trace(go.Bar(
+            x=df['msize'],
+            y=df['incorrect'],
+            name='Incorrect',
+            marker_color='red'
+        ))
+        fig.update_layout(
+            barmode='group',
+            title=f'Response Types vs Memory Size (latent={latent})',
+            xaxis_title='Memory Size (m)',
+            yaxis_title='Count',
+            legend_title='Response Type',
+            width=900,
+            height=600
+        )
+        fig_path = path / "response_types_mparams.html"
+        click.echo(f"[INFO] Saving response types plot to: {fig_path}")
+        fig.write_html(fig_path)
+
+    path = f"experiments/{cfg.app.dataset}"
+    save_path = path / "gs_results.json"
+    click.echo(f"[INFO] Saving results to: {save_path}")
+    with open(save_path, "w") as f:
+        json.dump(global_results, f, indent=4)
+
+    df = pd.DataFrame(global_results)
+    # Order columns by best precision
+    df = df.sort_values(by="precision", ascending=False)
+    # Update cfg with best parameters
+    best_params = df.iloc[0].to_dict()
+    cfg.neural.latent_dim = [int(best_params["latent"])]
+    cfg.memory.domain = [int(best_params["msize"])]
+    cfg.memory.filling = [float(best_params["filling_percent"])]
+
+    # Save updated config
+    config_path = Path(config)
+    click.echo(f"[INFO] Saving updated config with best parameters to: {config_path}")
+    with open(config_path, "w") as f:
+        OmegaConf.save(cfg, f)
 
     click.echo("[INFO] Best parameters search completed.")
 
@@ -521,6 +606,9 @@ def get_bestparams(config):
 @click.option("--config", help="YAML configuration.")
 def create_memories(config):
     "🧠 Create memories."
+
+    from reamember.neuralnets.classifier import Classifier
+    
     cfg = OmegaConf.load(config)
     config_summary(cfg)
 
@@ -561,8 +649,6 @@ def create_memories(config):
         )
 
         # Classifier ------------------------------------------------------------
-
-        from reamember.neuralnets.classifier import Classifier
 
         classifier = Classifier(
             latent_dim=cfg.neural.latent_dim,
