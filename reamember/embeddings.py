@@ -1,6 +1,8 @@
 import torch
 from torch.utils.data import DataLoader
 from tqdm import tqdm
+from torch.utils.tensorboard import SummaryWriter
+from pathlib import Path
 
 
 def evalImage(dataloader, model, device=None):
@@ -8,10 +10,9 @@ def evalImage(dataloader, model, device=None):
     with torch.no_grad():
         for batch in tqdm(dataloader):
             if isinstance(batch, (list, tuple)) and len(batch) == 2:
-                x, y = batch
+                x, _ = batch
             else:
                 x = batch
-                y = None
             x = x.to(device)
             z = model.encode(x)
             embeddings.append(z.cpu())
@@ -52,7 +53,43 @@ def get_embeddings( model, dataset, device, modality='image', save_path=None, ba
     )
 
     if save_path is not None:
+
         torch.save(embedding_dataset, save_path / 'embeddings.pth')
+
+        try:
+            dataset_name = getattr(getattr(dataset, 'train', None), '__class__', type('X', (), {}))
+            dataset_name = getattr(dataset_name, '__name__', 'dataset')
+            model_name = getattr(model, '__class__', type('Y', (), {}))
+            model_name = getattr(model_name, '__name__', 'model')
+
+            # The latent dimension is the second dimension of the embeddings
+            latent = embedding_dataset.train.data.shape[1]
+
+            tb_dir = Path('./logs') / f"{dataset_name}-{model_name}{latent}_embeddings"
+            writer = SummaryWriter(log_dir=str(tb_dir))
+            emb_train = embeddings_train
+            emb_test = embeddings_test
+
+            # Prepare metadata (labels) as list[str]
+            def _labels_to_list_str(labels):
+                if isinstance(labels, torch.Tensor):
+                    labels = labels.cpu().tolist()
+                try:
+                    return [str(int(val)) for val in labels]
+                except Exception:
+                    return [str(val) for val in labels]
+
+            metadata_train = _labels_to_list_str(embedding_dataset.train.targets)
+            metadata_test = _labels_to_list_str(embedding_dataset.test.targets)
+
+            writer.add_embedding(emb_train, metadata=metadata_train, tag='train-embeddings')
+            writer.add_embedding(emb_test, metadata=metadata_test, tag='test-embeddings')
+
+            writer.flush()
+            writer.close()
+            print(f"[INFO] Embeddings registrados en TensorBoard: {tb_dir}")
+        except Exception as e:
+            print(f"[WARN] No se pudieron registrar embeddings en TensorBoard: {e}")
 
         # PCA 
         from sklearn.decomposition import PCA
