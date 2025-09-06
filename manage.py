@@ -368,7 +368,7 @@ def test(config):
         click.echo(f"[INFO] {latent} Classification Report: {report}")
 
         # Save the classification report
-        report_path = path / "classification_report.json"
+        report_path = path / "classifier_report.json"
         click.echo(f"[INFO] Saving classification report to: {report_path}")
         with open(report_path, "w") as f:
             json.dump(report, f, indent=4)
@@ -394,7 +394,7 @@ def test(config):
         click.echo(f"[INFO] Saving confusion matrix to: {fig_path}")
         fig.write_html(fig_path)
 
-    click.echo(f"[INFO] Classifier testing completed.")
+    click.echo("[INFO] Classifier testing completed.")
 
 #--------------------------------------------------------------
 # Memory Commands
@@ -502,6 +502,8 @@ def get_bestparams(config):
                     "incorrect": percentages[3]
                 })
 
+        global_results.extend(results)
+
         #.................................................................       
 
         df = pd.DataFrame(results)
@@ -510,18 +512,13 @@ def get_bestparams(config):
             x=df['msize'],
             y=df['precision'],
             mode='markers+lines',
-            marker=dict(size=10, color=df['msize'], colorscale='Viridis', showscale=True, colorbar=dict(title='Memory Size (m)')),
-            text=[f"m={row['msize']}, precision={row['precision']:.4f}, recall={row['recall']:.4f}" for _, row in df.iterrows()],
-            hoverinfo='text'
+            name='Precision'
         ))
 
         fig.add_scatter(
             x=df['msize'],
             y=df['recall'],
             mode='markers+lines',
-            marker=dict(size=10, color='red'),
-            text=[f"m={row['msize']}, precision={row['precision']:.4f}, recall={row['recall']:.4f}" for _, row in df.iterrows()],
-            hoverinfo='text',
             name='Recall'
         )
 
@@ -534,7 +531,7 @@ def get_bestparams(config):
             height=600
         )
 
-        fig_path = path / "scores_mparams.html"
+        fig_path = path / "memory_scores_by_msize.html"
         click.echo(f"[INFO] Saving grid search results plot to: {fig_path}")
         fig.write_html(fig_path)
 
@@ -543,31 +540,25 @@ def get_bestparams(config):
 
         fig = go.Figure()
         fig.add_trace(go.Bar(
-            x=df['msize'],
-            y=df['recognized'],
-            name='Recognized',
-            marker_color='indigo'
-        ))
-        fig.add_trace(go.Bar(
-            x=df['msize'],
-            y=df['unrecognized'],
-            name='Unrecognized',
-            marker_color='lightgray'
-        ))
-        fig.add_trace(go.Bar(
-            x=df['msize'],
-            y=df['correct'],
-            name='Correct',
+            x=df['msize'].astype(str),
+            y=df['correct']*100,
+            name='Response Correct',
             marker_color='green'
         ))
         fig.add_trace(go.Bar(
-            x=df['msize'],
-            y=df['incorrect'],
-            name='Incorrect',
+            x=df['msize'].astype(str),
+            y=df['incorrect']*100,
+            name='Response Incorrect',
             marker_color='red'
         ))
+        fig.add_trace(go.Bar(
+            x=df['msize'].astype(str),
+            y=df['unrecognized']*100,
+            name='No Response / Unrecognized',
+            marker_color='black'
+        ))
         fig.update_layout(
-            barmode='group',
+            barmode='stack',
             title=f'Response Types vs Memory Size (latent={latent})',
             xaxis_title='Memory Size (m)',
             yaxis_title='Count',
@@ -575,12 +566,12 @@ def get_bestparams(config):
             width=900,
             height=600
         )
-        fig_path = path / "response_types_mparams.html"
+        fig_path = path / "memory_response_by_msize.html"
         click.echo(f"[INFO] Saving response types plot to: {fig_path}")
         fig.write_html(fig_path)
 
-    path = f"experiments/{cfg.app.dataset}"
-    save_path = path / "gs_results.json"
+    path = Path(f"experiments/{cfg.app.dataset}")
+    save_path = path / "memories_results.json"
     click.echo(f"[INFO] Saving results to: {save_path}")
     with open(save_path, "w") as f:
         json.dump(global_results, f, indent=4)
@@ -608,125 +599,130 @@ def create_memories(config):
     "🧠 Create memories."
 
     from reamember.neuralnets.classifier import Classifier
+    from omegaconf import ListConfig
     
     cfg = OmegaConf.load(config)
     config_summary(cfg)
 
-    for latent in cfg.neural.latent_dim:
-        path = f"experiments/{cfg.app.dataset}/latent_{latent}"
-        path = Path(path)
+    latent = int(cfg.neural.latent_dim[0]) if isinstance(cfg.neural.latent_dim, ListConfig) else int(cfg.neural.latent_dim)
+    domain = int(cfg.memory.domain[0]) if isinstance(cfg.memory.domain, ListConfig) else int(cfg.memory.domain)
 
-        # Dataset ------------------------------------------------------------
+    print(f"[INFO] Creating memories with latent={latent}, domain={domain}")
 
-        embeddings_dataset = torch.load(
-            path / "embeddings.pth", map_location=device, weights_only=False
+    path = f"experiments/{cfg.app.dataset}/latent_{latent}"
+    path = Path(path)
+
+    # Dataset ------------------------------------------------------------
+
+    embeddings_dataset = torch.load(
+        path / "embeddings.pth", map_location=device, weights_only=False
+    )
+
+    dataset = ImageDatasetWrapper(
+            dataset_name=cfg.app.dataset,
         )
 
-        dataset = ImageDatasetWrapper(
-                dataset_name=cfg.app.dataset,
+    input_shape = dataset.train[0][0].shape
+    click.echo(f"[INFO] Input shape: {input_shape}")
+
+    # Memory ---------------------------------------------------------------
+
+    eam = AssociativeMemory(
+        n=latent,
+        m=domain,
+        xi=cfg.memory.xi,
+        sigma=cfg.memory.sigma,
+        iota=cfg.memory.iota,
+        kappa=cfg.memory.kappa,
+        device=device
+    )
+
+    eam = memorize(eam, dataset=embeddings_dataset.test)
+
+    memories_features, memories_recognition, _ = remember(cfg,
+        eam=eam,
+        dataset=embeddings_dataset.test
+    )
+
+    # Classifier ------------------------------------------------------------
+
+    classifier = Classifier(
+        latent_dim=latent,
+        n_classes=embeddings_dataset.n_classes,
+    )
+
+    classifier_path = path / "classifier.pth"
+    if classifier_path.exists():
+        click.echo(f"[INFO] Loading classifier from: {classifier_path}")
+        classifier.load_state_dict(torch.load(classifier_path, map_location=device))
+        classifier.to(device)
+    else:
+        click.echo(f"[ERROR] Classifier path does not exist: {classifier_path}")
+        sys.exit(1)
+
+    # Decoder -----------------------------------------------------------------
+
+    decoder = Autoencoder(input_shape=input_shape, latent_dim=latent)
+    decoder_path = path / "autoencoder.pth"
+    if decoder_path.exists():
+        click.echo(f"[INFO] Loading decoder from: {decoder_path}")
+        decoder.load_state_dict(torch.load(decoder_path, map_location=device))
+        decoder.to(device)
+    else:
+        click.echo(f"[ERROR] Decoder path does not exist: {decoder_path}")
+        sys.exit(1)
+
+    # Inference ---------------------------------------------------------------
+
+    reconstructedImgPath = Path(path / f"dim{domain}_memory_reconstructed")
+    if not reconstructedImgPath.exists():
+        click.echo(f"[INFO] Creating path: {reconstructedImgPath}")
+        reconstructedImgPath.mkdir(parents=True, exist_ok=True)
+
+    click.echo("[INFO] Classifying memories...")
+
+    memories_recognition = []
+
+    for i in tqdm(range(len(memories_features))):
+        f = torch.as_tensor(memories_features[i], dtype=torch.float32, device=device).unsqueeze(0)
+        with torch.no_grad():
+            memories_recognition.append(
+                classifier.predict(f).cpu().numpy()
             )
+            torchvision.utils.save_image(decoder.decode(f).cpu(), reconstructedImgPath / f"img_{i}.png") # Check
 
-        input_shape = dataset.train[0][0].shape
-        click.echo(f"[INFO] Input shape: {input_shape}")
+    # Logs --------------------------------------------------------------------
 
-        # Memory ---------------------------------------------------------------
+    memories_recognition = np.concatenate(memories_recognition, axis=0)
+    original_labels = embeddings_dataset.test.targets.cpu().numpy()
 
-        eam = AssociativeMemory(
-            n=latent,
-            m=int(cfg.memory.domain[0]),
-            xi=cfg.memory.xi,
-            sigma=cfg.memory.sigma,
-            iota=cfg.memory.iota,
-            kappa=cfg.memory.kappa,
-            device=device
+    cm = confusion_matrix(original_labels, memories_recognition)
+    fig = go.Figure(
+        data=go.Heatmap(
+            z=cm,
+            x=list(range(embeddings_dataset.n_classes)),
+            y=list(range(embeddings_dataset.n_classes)),
+            colorscale="Viridis",
+            colorbar=dict(title="Count"),
         )
+    )
+    fig.update_layout(
+        title="Confusion Matrix",
+        xaxis_title="Predicted Class",
+        yaxis_title="True Class",
+        width=800,
+        height=800,
+    )
+    fig_path = path / "memories_confmatrix.html"
+    click.echo(f"[INFO] Saving confusion matrix to: {fig_path}")
+    fig.write_html(fig_path)
 
-        eam = memorize(eam, dataset=embeddings_dataset.test)
-    
-        memories_features, memories_recognition, _ = remember(cfg,
-            eam=eam,
-            dataset=embeddings_dataset.test
-        )
-
-        # Classifier ------------------------------------------------------------
-
-        classifier = Classifier(
-            latent_dim=cfg.neural.latent_dim,
-            n_classes=embeddings_dataset.n_classes,
-        )
-
-        classifier_path = path / "classifier.pth"
-        if classifier_path.exists():
-            click.echo(f"[INFO] Loading classifier from: {classifier_path}")
-            classifier.load_state_dict(torch.load(classifier_path, map_location=device))
-            classifier.to(device)
-        else:
-            click.echo(f"[ERROR] Classifier path does not exist: {classifier_path}")
-            sys.exit(1)
-
-        # Decoder -----------------------------------------------------------------
-
-        decoder = Autoencoder(input_shape=input_shape, latent_dim=cfg.neural.latent_dim)
-        decoder_path = path / "autoencoder.pth"
-        if decoder_path.exists():
-            click.echo(f"[INFO] Loading decoder from: {decoder_path}")
-            decoder.load_state_dict(torch.load(decoder_path, map_location=device))
-            decoder.to(device)
-        else:
-            click.echo(f"[ERROR] Decoder path does not exist: {decoder_path}")
-            sys.exit(1)
-
-        # Inference ---------------------------------------------------------------
-
-        reconstructedImgPath = Path(path / f"dim{cfg.memory.domain[0]}_memory_reconstructed")
-        if not reconstructedImgPath.exists():
-            click.echo(f"[INFO] Creating path: {reconstructedImgPath}")
-            reconstructedImgPath.mkdir(parents=True, exist_ok=True)
-
-        click.echo("[INFO] Classifying memories...")
-
-        memories_recognition = []
-
-        for i in tqdm(range(len(memories_features))):
-            f = torch.as_tensor(memories_features[i], dtype=torch.float32, device=device).unsqueeze(0)
-            with torch.no_grad():
-                memories_recognition.append(
-                    classifier.predict(f).cpu().numpy()
-                )
-                torchvision.utils.save_image(decoder.decode(f).cpu(), reconstructedImgPath / f"img_{i}.png") # Check
-
-        # Logs --------------------------------------------------------------------
-
-        memories_recognition = np.concatenate(memories_recognition, axis=0)
-        original_labels = embeddings_dataset.test.targets.cpu().numpy()
-
-        cm = confusion_matrix(original_labels, memories_recognition)
-        fig = go.Figure(
-            data=go.Heatmap(
-                z=cm,
-                x=list(range(embeddings_dataset.n_classes)),
-                y=list(range(embeddings_dataset.n_classes)),
-                colorscale="Viridis",
-                colorbar=dict(title="Count"),
-            )
-        )
-        fig.update_layout(
-            title="Confusion Matrix",
-            xaxis_title="Predicted Class",
-            yaxis_title="True Class",
-            width=800,
-            height=800,
-        )
-        fig_path = path / "memories_confmatrix.html"
-        click.echo(f"[INFO] Saving confusion matrix to: {fig_path}")
-        fig.write_html(fig_path)
-
-        # click.echo(f"[INFO] Saving memories to: {path / 'memories.pth'}")
-        # torch.save({
-        #    'features': memories_features,
-        #    'recognition': memories_recognition,
-        #    'weights': memories_weights
-        # }, path / "memories.pth")
+    # click.echo(f"[INFO] Saving memories to: {path / 'memories.pth'}")
+    # torch.save({
+    #    'features': memories_features,
+    #    'recognition': memories_recognition,
+    #    'weights': memories_weights
+    # }, path / "memories.pth")
 
 
 @cli.command()
@@ -751,7 +747,7 @@ def launch_tensorboard():
         import subprocess
 
         subprocess.run(
-            ["tensorboard", f"--logdir={Path('logs')}", "--port=6006"], check=True
+            ["tensorboard", f"--logdir={Path('logs')}", "--port=6006", "--bind_all"], check=True
         )
     except FileNotFoundError:
         click.echo("[ERROR] TensorBoard not found. Please install it.")
