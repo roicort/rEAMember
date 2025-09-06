@@ -10,6 +10,7 @@ def rsize_recall(recall, msize, min_value, max_value):
     if (msize == 1):
         return (recall.astype(dtype=float) + 1.0)*(max_value - min_value)/2
     else:
+        print(f"[DEBUG] Resizing recall from {recall.shape} to msize {msize} with min {min_value} and max {max_value}")
         return (max_value - min_value) * recall.astype(dtype=float) \
             / (msize - 1.0) + min_value
 
@@ -39,6 +40,8 @@ def remember(cfg, eam, dataset):
     Remember features from the dataset.
     """
 
+    from omegaconf import ListConfig
+
     features = dataset.data
     min_value = features.min()
     max_value = features.max()
@@ -49,7 +52,8 @@ def remember(cfg, eam, dataset):
     memories_recognition = []
     memories_weights = []
 
-    print(f"[INFO] Remembering {len(features_rounded)} features with shape {features_rounded.shape}...")
+    latent = int(cfg.neural.latent_dim[0]) if isinstance(cfg.neural.latent_dim, ListConfig) else int(cfg.neural.latent_dim)
+
     for feature in tqdm(features_rounded):
         memory, recognized, weight = eam.recall(feature)
         memory = memory.cpu().numpy() if torch.is_tensor(memory) else memory
@@ -61,7 +65,7 @@ def remember(cfg, eam, dataset):
         memories_weights.append(weight)
 
     memories_features = np.array(memories_features, dtype=float)
-    memories_features = rsize_recall(memories_features, cfg.neural.latent_dim, min_value, max_value) # Check
+    memories_features = rsize_recall(memories_features, latent, min_value, max_value)
     memories_recognition = np.array(memories_recognition, dtype=int)
     memories_weights = np.array(memories_weights, dtype=float)
 
@@ -99,7 +103,7 @@ def evalm(eam, classifier, dataset):
     # Results
 
     answers = np.array(answers)
-    recognized = answers is not None
+    recognized = answers != None
     predictions = answers[recognized]
     labels = labels[recognized]
 

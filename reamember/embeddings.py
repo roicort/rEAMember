@@ -104,4 +104,4 @@ def get_embeddings( model, dataset, device, modality='image', save_path=None, ba
         labels_all = torch.cat([embedding_dataset.train.targets, embedding_dataset.test.targets], dim=0).numpy()
         fig = px.scatter(x=pca_embeddings[:, 0], y=pca_embeddings[:, 1], color=labels_all, title='PCA Embeddings')
         fig.update_layout(width=800, height=600)
-        fig.write_image(save_path / 'pca_embeddings.png')
+        fig.write_image(save_path / 'embeddings_pca.png')
