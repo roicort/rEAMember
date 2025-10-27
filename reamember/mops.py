@@ -10,7 +10,7 @@ def rsize_recall(recall, msize, min_value, max_value):
     if (msize == 1):
         return (recall.astype(dtype=float) + 1.0)*(max_value - min_value)/2
     else:
-        print(f"[DEBUG] Resizing recall from {recall.shape} to msize {msize} with min {min_value} and max {max_value}")
+        #print(f"[DEBUG] Resizing recall from {recall.shape} to msize {msize} with min {min_value} and max {max_value}")
         return (max_value - min_value) * recall.astype(dtype=float) \
             / (msize - 1.0) + min_value
 

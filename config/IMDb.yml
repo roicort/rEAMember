@@ -1,0 +1,26 @@
+app:
+  dataset: IMDb
+  modality: text
+neural:
+  latent_dim:
+  - 768
+  epochs: 50
+  batch_size: 64
+  learning_rate: 0.001
+  patience: 7
+  delta: 0.005
+memory:
+  domain:
+  - 4
+  - 8
+  - 16
+  - 32
+  - 64
+  - 128
+  filling:
+  - 0.8
+  - 1.0
+  iota: 0.0
+  kappa: 0.0
+  xi: 0.0
+  sigma: 0.1

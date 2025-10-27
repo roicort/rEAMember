@@ -38,8 +38,9 @@ from collections.abc import Mapping
 # Can be changed to TorchAssociativeMemory or NumpyAssociativeMemory
 from reamember.eam.associative import TorchAssociativeMemory as AssociativeMemory 
 from reamember.neuralnets.classifier import Classifier
-from reamember.dataset import ImageDatasetWrapper
+from reamember.dataset import ImageDatasetWrapper, TextDatasetWrapper
 from reamember.neuralnets.autoencoder import Autoencoder
+from reamember.neuralnets.transformer import Transformer
 from reamember.config import setConfig
 from reamember.mops import memorize, evalm, remember
 
@@ -84,13 +85,13 @@ def cli():
     pass
 
 @click.group()
-def autoencoder():
-    """Comandos para el autoencoder."""
+def encoder():
+    """Encoder related commands."""
     pass
 
 @click.group()
 def classifier():
-    """Comandos para el clasificador."""
+    """Classifier related commands."""
     pass
 
 #--------------------------------------------------------------
@@ -142,107 +143,185 @@ def config_summary(cfg):
         Console().print(outer)
 
 #--------------------------------------------------------------
-# Autoencoder Commands
+# Encoder Commands
 
-@autoencoder.command()
+@encoder.command()
 @click.option("--config", help="YAML configuration.")
 def train(config):
     "🏃🏻‍♂️‍➡️ Train autoencoder."
     cfg = OmegaConf.load(config)
     config_summary(cfg)
 
-    from reamember.train import train_autoencoder
+    if cfg.app.modality == "image":
 
-    # Load Dataset from Defaults
-    if cfg.app.dataset == "Custom":
-        # For now, we will just print an error message
-        # and exit since custom dataset implementation is not provided.
-        # You can replace this with your actual dataset loading code.
-        click.echo("[ERROR] Custom dataset not implemented yet.")
-        sys.exit(1)
-    else:
-        click.echo(f"[INFO] Loading default image dataset: {cfg.app.dataset}")
+        from reamember.train import train_autoencoder
 
         dataset = ImageDatasetWrapper(
             dataset_name=cfg.app.dataset,
         )
 
-    input_shape = dataset.train[0][0].shape
-    click.echo(f"[INFO] Input shape: {input_shape}")
+        input_shape = dataset.train[0][0].shape
+        click.echo(f"[INFO] Input shape: {input_shape}")
 
-    for latent in cfg.neural.latent_dim:
-        path = f"experiments/{cfg.app.dataset}/latent_{latent}"
-        path = Path(path)
-        if not path.exists():
-            click.echo(f"[INFO] Creating path: {path}")
-            path.mkdir(parents=True, exist_ok=True)
+        for latent in cfg.neural.latent_dim:
+            path = f"experiments/{cfg.app.dataset}/latent_{latent}"
+            path = Path(path)
+            if not path.exists():
+                click.echo(f"[INFO] Creating path: {path}")
+                path.mkdir(parents=True, exist_ok=True)
 
-        train_autoencoder(
-            config=cfg.neural,
-            dim=latent,
-            input_shape=input_shape,
-            dataset=dataset,
-            name=f"{cfg.app.dataset}-{latent}",
-            save_path=path / "autoencoder.pth",
+            train_autoencoder(
+                config=cfg.neural,
+                dim=latent,
+                input_shape=input_shape,
+                dataset=dataset,
+                name=f"{cfg.app.dataset}-{latent}",
+                save_path=path / "autoencoder.pth",
+            )
+
+    elif cfg.app.modality == "text":
+
+        from reamember.train import train_transformer
+        from reamember.neuralnets.transformer import Transformer
+
+        dataset = TextDatasetWrapper(
+            dataset_name=cfg.app.dataset,
         )
 
-@autoencoder.command()
+        model = Transformer(model_name="bert-base-uncased")
+        # Update cfg.neural.latent_dim to match model latent_dim
+        cfg.neural.latent_dim = [model.latent_dim]
+        # Save updated config
+        config_path = Path(config)
+        click.echo(f"[INFO] Saving updated config with best parameters to: {config_path}")
+        with open(config_path, "w") as f:
+            OmegaConf.save(cfg, f)
+
+
+        for latent in cfg.neural.latent_dim:
+            path = f"experiments/{cfg.app.dataset}/latent_{latent}"
+            path = Path(path)
+            if not path.exists():
+                click.echo(f"[INFO] Creating path: {path}")
+                path.mkdir(parents=True, exist_ok=True)
+
+            train_transformer(
+                config=cfg.neural,
+                dataset=dataset,
+                name=f"{cfg.app.dataset}-{latent}",
+                save_path=path / "transformer.pth",
+            )
+
+
+@encoder.command()
 @click.option("--config", help="YAML configuration.")
 def test(config):
-    "Test autoencoder."
+    "Test encoder."
     cfg = OmegaConf.load(config)
     config_summary(cfg)
 
-    from reamember.dataset import ImageDatasetWrapper
+    if cfg.app.modality == "image":
 
-    click.echo(f"[INFO] Loading dataset: {cfg.app.dataset}")
+        from reamember.dataset import ImageDatasetWrapper
 
-    dataset = ImageDatasetWrapper(
-        dataset_name=cfg.app.dataset,
-    )
+        click.echo(f"[INFO] Loading dataset: {cfg.app.dataset}")
 
-    input_shape = dataset.test[0][0].shape
+        dataset = ImageDatasetWrapper(
+            dataset_name=cfg.app.dataset,
+        )
 
-    for latent in cfg.neural.latent_dim:
-        path = f"experiments/{cfg.app.dataset}/latent_{latent}"
-        path = Path(path)
+        input_shape = dataset.test[0][0].shape
 
-        autoencoder = Autoencoder(input_shape=input_shape, latent_dim=latent)
-        encoder_path = path / "autoencoder.pth"
+        for latent in cfg.neural.latent_dim:
+            path = f"experiments/{cfg.app.dataset}/latent_{latent}"
+            path = Path(path)
 
-        if encoder_path.exists():
-            click.echo(f"[INFO] Loading encoder from: {encoder_path}")
-            autoencoder.load_state_dict(torch.load(encoder_path, map_location=device))
-            autoencoder.to(device)
-        else:
-            click.echo(f"[ERROR] Encoder does not exist in: {encoder_path}")
-            sys.exit(1)
-    
-        try:
-            embeddings_dataset = torch.load(
-                path / "embeddings.pth", map_location=device, weights_only=False
-            )
-        except FileNotFoundError:
-            click.echo(f"[ERROR] Embeddings file not found: {path / 'embeddings.pth'}")
-            click.echo("[INFO] Please run `get-embeddings` command first.")
-            sys.exit(1)
+            autoencoder = Autoencoder(input_shape=input_shape, latent_dim=latent)
+            encoder_path = path / "autoencoder.pth"
 
-        reconstructedImgPath = Path(path / "reconstructed")
-        if not reconstructedImgPath.exists():
-            click.echo(f"[INFO] Creating path: {reconstructedImgPath}")
-            reconstructedImgPath.mkdir(parents=True, exist_ok=True)
+            if encoder_path.exists():
+                click.echo(f"[INFO] Loading encoder from: {encoder_path}")
+                autoencoder.load_state_dict(torch.load(encoder_path, map_location=device))
+                autoencoder.to(device)
+            else:
+                click.echo(f"[ERROR] Encoder does not exist in: {encoder_path}")
+                sys.exit(1)
+        
+            try:
+                embeddings_dataset = torch.load(
+                    path / "embeddings.pth", map_location=device, weights_only=False
+                )
+            except FileNotFoundError:
+                click.echo(f"[ERROR] Embeddings file not found: {path / 'embeddings.pth'}")
+                click.echo("[INFO] Please run `get-embeddings` command first.")
+                sys.exit(1)
 
-        for i in tqdm(range(len(embeddings_dataset.test.data))):
-            f = torch.as_tensor(embeddings_dataset.test.data[i], dtype=torch.float32, device=device).unsqueeze(0)
-            with torch.no_grad():
-                reconstructed = autoencoder.decode(f)
-                # Save image using torchvision.utils.save_image
-                torchvision.utils.save_image(reconstructed, reconstructedImgPath / f"img_{i}.png")
+            reconstructedImgPath = Path(path / "reconstructed")
+            if not reconstructedImgPath.exists():
+                click.echo(f"[INFO] Creating path: {reconstructedImgPath}")
+                reconstructedImgPath.mkdir(parents=True, exist_ok=True)
 
-        click.echo(f"[INFO] Reconstructed images saved to: {reconstructedImgPath}")
+            for i in tqdm(range(len(embeddings_dataset.test.data))):
+                f = torch.as_tensor(embeddings_dataset.test.data[i], dtype=torch.float32, device=device).unsqueeze(0)
+                with torch.no_grad():
+                    reconstructed = autoencoder.decode(f)
+                    # Save image using torchvision.utils.save_image
+                    torchvision.utils.save_image(reconstructed, reconstructedImgPath / f"img_{i}.png")
+
+            click.echo(f"[INFO] Reconstructed images saved to: {reconstructedImgPath}")
+
+    elif cfg.app.modality == "text":
+        
+        from reamember.dataset import TextDatasetWrapper
+
+        click.echo(f"[INFO] Loading dataset: {cfg.app.dataset}")
+
+        dataset = TextDatasetWrapper(
+            dataset_name=cfg.app.dataset,
+        )
+
+        input_shape = dataset.test[0][0].shape
+
+        for latent in cfg.neural.latent_dim:
+            path = f"experiments/{cfg.app.dataset}/latent_{latent}"
+            path = Path(path)
+
+            transformer = Transformer(input_shape=input_shape, latent_dim=latent)
+            transformer_path = path / "transformer.pth"
+
+            if transformer_path.exists():
+                click.echo(f"[INFO] Loading transformer from: {transformer_path}")
+                transformer.load_state_dict(torch.load(transformer_path, map_location=device))
+                transformer.to(device)
+            else:
+                click.echo(f"[ERROR] Transformer does not exist in: {transformer_path}")
+                sys.exit(1)
+
+            try:
+                embeddings_dataset = torch.load(
+                    path / "embeddings.pth", map_location=device, weights_only=False
+                )
+            except FileNotFoundError:
+                click.echo(f"[ERROR] Embeddings file not found: {path / 'embeddings.pth'}")
+                click.echo("[INFO] Please run `get-embeddings` command first.")
+                sys.exit(1)
+
+            reconstructedTextPath = Path(path / "reconstructed")
+            if not reconstructedTextPath.exists():
+                click.echo(f"[INFO] Creating path: {reconstructedTextPath}")
+                reconstructedTextPath.mkdir(parents=True, exist_ok=True)
+
+            with open(reconstructedTextPath / "reconstructed.txt", "w", encoding="utf-8") as f_out:
+                for i in tqdm(range(len(embeddings_dataset.test.data))):
+                    f = torch.as_tensor(embeddings_dataset.test.data[i], dtype=torch.float32, device=device).unsqueeze(0)
+                    with torch.no_grad():
+                        reconstructed = transformer.decode(f)
+                        f_out.write(reconstructed + "\n")
+
+            click.echo(f"[INFO] Reconstructed texts saved to: {reconstructedTextPath}")
 
     # Done
-    click.echo("[INFO] Autoencoder testing completed.")
+    click.echo("[INFO] Encoder testing completed.")
 
 #--------------------------------------------------------------
 # Embedding Commands
@@ -260,28 +339,51 @@ def get_embeddings(config):
     # Load Dataset
     click.echo(f"[INFO] Loading dataset: {cfg.app.dataset}")
 
-    dataset = ImageDatasetWrapper(
-        dataset_name=cfg.app.dataset,
-    )
+    if cfg.app.modality == "image":
 
-    input_shape = dataset.train[0][0].shape
+        dataset = ImageDatasetWrapper(
+            dataset_name=cfg.app.dataset,
+        )
 
-    for latent in cfg.neural.latent_dim:
-        path = f"experiments/{cfg.app.dataset}/latent_{latent}"
-        path = Path(path)
+        input_shape = dataset.train[0][0].shape
 
-        # Load Autoencoder
+        for latent in cfg.neural.latent_dim:
+            path = f"experiments/{cfg.app.dataset}/latent_{latent}"
+            path = Path(path)
 
-        encoder = Autoencoder(input_shape=input_shape, latent_dim=latent)
-        encoder_path = path / "autoencoder.pth"
-        if encoder_path.exists():
-            click.echo(f"[INFO] Loading encoder from: {encoder_path}")
-            encoder.load_state_dict(torch.load(encoder_path, map_location=device))
-        else:
-            click.echo(f"[ERROR] Encoder path does not exist: {encoder_path}")
-            sys.exit(1)
+            # Load Autoencoder
 
-        get_embeddings(encoder, dataset, device=device, save_path=path)
+            encoder = Autoencoder(input_shape=input_shape, latent_dim=latent)
+            encoder_path = path / "autoencoder.pth"
+            if encoder_path.exists():
+                click.echo(f"[INFO] Loading encoder from: {encoder_path}")
+                encoder.load_state_dict(torch.load(encoder_path, map_location=device))
+            else:
+                click.echo(f"[ERROR] Encoder path does not exist: {encoder_path}")
+                sys.exit(1)
+
+            get_embeddings(encoder, dataset, device=device, save_path=path)
+
+    elif cfg.app.modality == "text":
+
+        dataset = TextDatasetWrapper(
+            dataset_name=cfg.app.dataset,
+        )
+
+        for latent in cfg.neural.latent_dim:
+            path = f"experiments/{cfg.app.dataset}/latent_{latent}"
+            path = Path(path)
+
+            encoder_path = path / "transformer.pth"
+            if encoder_path.exists():
+                click.echo(f"[INFO] Loading transformer from: {encoder_path}")
+                encoder = Transformer()
+                encoder.load(encoder_path)
+            else:
+                click.echo(f"[ERROR] Transformer path does not exist: {encoder_path}")
+                sys.exit(1)
+
+            get_embeddings(encoder, dataset, modality=cfg.app.modality, device=device, save_path=path)
 
     # Done
     click.echo("[INFO] Embeddings obtained.")
@@ -768,7 +870,7 @@ def clean_logs():
 #########################################################################
 # Add commands and run the main CLI group
 
-cli.add_command(autoencoder)
+cli.add_command(encoder)
 cli.add_command(classifier)
 
 if __name__ == "__main__":

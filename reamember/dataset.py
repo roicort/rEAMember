@@ -1,8 +1,8 @@
 # Dataset y DataLoader para rEAMember
 import torch
 from torch.utils.data import Dataset
-from torchvision import datasets, transforms
-from torchvision.io import decode_image
+from torchvision import transforms
+
 import os
 import sys
 from PIL import Image
@@ -34,13 +34,30 @@ class CustomImageDataset(Dataset):
             target = self.target_transform(target)
         assert img.ndim == 3 , f"Shape incorrecto: {img.shape}"
         return img, target
+    
+class CustomTextDataset(Dataset):
+    def __init__(self, texts, targets, transform=transforms.ToTensor(), target_transform=torch.tensor):
+        self.texts = texts
+        self.targets = targets
+        self.transform = transform
+        self.target_transform = target_transform
+
+    def __len__(self):
+        return len(self.texts)
+    
+    def __getitem__(self, idx):
+        text, target = self.texts[idx], self.targets[idx]
+        if self.transform:
+            text = self.transform(text)
+        if self.target_transform:
+            target = self.target_transform(target)
+        return text, target
         
 
 class ImageDatasetWrapper:
-    """
-    Carga y expone train y test como atributos .train y .test
-    """
     def __init__(self, dataset_name="FashionMNIST", data_path="./data", transform=None, custom_class=None, *args, **kwargs):
+        from torchvision import datasets
+
         if transform is None:
             transform = transforms.Compose([
                 transforms.ToTensor(),
@@ -96,9 +113,28 @@ class ImageDatasetWrapper:
             self.test = CustomImageDataset(images_test, targets_test)
         else:
             raise ValueError(f"Dataset not supported: {dataset_name}")
-        
+
+def _identity(x):
+    return x
+
 class TextDatasetWrapper:
-    pass
+    def __init__(self, dataset_name="IMDB", data_path="./data", transform=None, custom_class=None, *args, **kwargs):
+
+        if transform is None:
+            transform = _identity
+    
+        if dataset_name == "IMDb":
+            from datasets import load_dataset
+            ds = load_dataset("stanfordnlp/imdb", cache_dir=f"{data_path}/{dataset_name}")
+            train_texts = ds['train']['text']
+            train_labels = [1 if label == 'pos' else 0 for label in ds['train']['label']]
+            test_texts = ds['test']['text']
+            test_labels = [1 if label == 'pos' else 0 for label in ds['test']['label']]
+
+            self.train = CustomTextDataset(train_texts, train_labels, transform=transform)
+            self.test = CustomTextDataset(test_texts, test_labels, transform=transform)
+        else:
+            raise ValueError(f"Dataset not supported: {dataset_name}")
 
 class EmbeddingDataset(Dataset):
     def __init__(self, embeddings, targets):

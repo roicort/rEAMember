@@ -5,6 +5,7 @@ from pytorch_lightning.callbacks import EarlyStopping
 from pytorch_lightning.loggers import TensorBoardLogger
 from reamember.neuralnets.autoencoder import Autoencoder
 from reamember.neuralnets.classifier import Classifier
+from reamember.neuralnets.transformer import Transformer
 import torchvision.utils as vutils
 
 class ImageReconstructionCallback(pl.Callback):
@@ -53,8 +54,26 @@ def train_autoencoder(config, dim, input_shape, dataset, name, save_path):
     trainer.fit(model, train_loader, test_loader)
     torch.save(model.state_dict(), save_path)
 
-def train_transformer():
-    pass  # Placeholder for transformer training logic
+def train_transformer(config, dataset, name, save_path):
+    train_loader = DataLoader(
+        dataset.train,
+        batch_size=config.batch_size,
+        num_workers=0,
+        shuffle=True,
+        persistent_workers=False 
+    )
+    test_loader = DataLoader(
+        dataset.test,
+        batch_size=config.batch_size,
+        num_workers=0,
+        persistent_workers=False
+    )
+    model = Transformer(model_name="bert-base-uncased")
+    #early_stop = EarlyStopping(monitor='val_loss', patience=config.patience, min_delta=config.delta, mode='min', verbose=True)
+    #logger = TensorBoardLogger("logs", name=f"{name}_transformer")
+    #trainer = pl.Trainer(max_epochs=config.epochs, callbacks=[early_stop], logger=logger)
+    #trainer.fit(model, train_loader, test_loader)
+    model.save(save_path)
 
 def train_classifier(config, dim, dataset, name, save_path):
     train_loader = DataLoader(

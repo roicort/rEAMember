@@ -1,15 +1,23 @@
 from transformers import AutoModel, AutoTokenizer
 
 class Transformer:
-    def __init__(self, model_name="bert-base-uncased"):
+    def __init__(self, model_name="distilbert/distilbert-base-uncased"):
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
         self.model = AutoModel.from_pretrained(model_name)
+        self.latent_dim = self.model.config.hidden_size
 
     def encode(self, texts, device=None):
-        inputs = self.tokenizer(texts, return_tensors='pt', padding=True, truncation=True)
+        inputs = self.tokenizer(
+            texts,
+            return_tensors='pt',
+            padding='max_length',
+            truncation=True,
+            max_length=128
+        )
         if device is not None:
             inputs = {k: v.to(device) for k, v in inputs.items()}
         outputs = self.model(**inputs)
+        # Get the embeddings from the last hidden state
         return outputs.last_hidden_state
     
     def decode(self, embeddings):

@@ -15,28 +15,51 @@ def evalImage(dataloader, model, device=None):
                 x = batch
             x = x.to(device)
             z = model.encode(x)
-            embeddings.append(z.cpu())
+            embeddings.append(z)
     embeddings = torch.cat(embeddings, dim=0)
     return embeddings
 
-def get_embeddings( model, dataset, device, modality='image', save_path=None, batch_size=64, num_workers=2):
+def evalText(dataloader, model, device=None):
+    import gc
+    embeddings = []
+    with torch.no_grad():
+        for batch in tqdm(dataloader):
+            if isinstance(batch, (list, tuple)) and len(batch) == 2:
+                x, _ = batch
+            else:
+                x = batch
+            z = model.encode(x, device=device)
+            embeddings.append(z)
+            del x, z
+            if device == 'cuda':
+                torch.cuda.empty_cache()
+            elif device == 'mps':
+                torch.mps.empty_cache()
+            else:
+                gc.collect()
+    embeddings = torch.cat(embeddings, dim=0)
+    return embeddings
+
+def get_embeddings( model, dataset, device, modality='image', save_path=None, batch_size=32, num_workers=2):
     """
     Extrae embeddings usando el encoder y un dataset (no dataloader).
     Crea internamente el DataLoader para asegurar el batch correcto.
     """
-    model.eval()
-    if device is not None:
-        model.to(device)
 
     dataloader_train = DataLoader(dataset.train, batch_size=batch_size, shuffle=False, num_workers=num_workers)
     dataloader_test = DataLoader(dataset.test, batch_size=batch_size, shuffle=False, num_workers=num_workers)
 
     if modality == 'text':
-        pass
-        #embeddings_train = evalText(dataloader_train, model, device)
-        #embeddings_test = evalText(dataloader_test, model, device)
+        model.model.eval()
+        if device is not None:
+            model.model.to(device)
+        embeddings_train = evalText(dataloader_train, model, device)
+        embeddings_test = evalText(dataloader_test, model, device)
 
     elif modality == 'image':
+        model.eval()
+        if device is not None:
+            model.to(device)
         embeddings_train = evalImage(dataloader_train, model, device)
         embeddings_test = evalImage(dataloader_test, model, device)
 
@@ -54,6 +77,7 @@ def get_embeddings( model, dataset, device, modality='image', save_path=None, ba
 
     if save_path is not None:
 
+        print(f"[INFO] Saving embeddings in: {save_path}")
         torch.save(embedding_dataset, save_path / 'embeddings.pth')
 
         try:
@@ -65,7 +89,7 @@ def get_embeddings( model, dataset, device, modality='image', save_path=None, ba
             # The latent dimension is the second dimension of the embeddings
             latent = embedding_dataset.train.data.shape[1]
 
-            tb_dir = Path('./logs') / f"{dataset_name}-{model_name}{latent}_embeddings"
+            tb_dir = Path('./logs') / f"{dataset_name}_{model_name}_{latent}_embeddings"
             writer = SummaryWriter(log_dir=str(tb_dir))
             emb_train = embeddings_train
             emb_test = embeddings_test
@@ -79,14 +103,13 @@ def get_embeddings( model, dataset, device, modality='image', save_path=None, ba
                 except Exception:
                     return [str(val) for val in labels]
 
-            metadata_train = _labels_to_list_str(embedding_dataset.train.targets)
-            metadata_test = _labels_to_list_str(embedding_dataset.test.targets)
+            labels_train = _labels_to_list_str(embedding_dataset.train.targets)
+            labels_test = _labels_to_list_str(embedding_dataset.test.targets)
 
-            writer.add_embedding(emb_train, metadata=metadata_train, tag='train-embeddings')
-            writer.add_embedding(emb_test, metadata=metadata_test, tag='test-embeddings')
-
-            writer.flush()
+            writer.add_embedding(emb_train, metadata=labels_train, tag='train-embeddings')
+            writer.add_embedding(emb_test, metadata=labels_test, tag='test-embeddings')
             writer.close()
+
             print(f"[INFO] Embeddings registrados en TensorBoard: {tb_dir}")
         except Exception as e:
             print(f"[WARN] No se pudieron registrar embeddings en TensorBoard: {e}")

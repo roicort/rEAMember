@@ -28,6 +28,8 @@ dependencies = [
     "pdoc>=15.0.4",
     "rich-click>=1.8.9",
     "nbformat>=5.10.4",
+    "transformers>=4.57.0",
+    "datasets>=4.1.1",
 ]
 
 [tool.uv.sources]
