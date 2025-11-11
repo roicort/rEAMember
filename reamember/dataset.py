@@ -133,6 +133,18 @@ class TextDatasetWrapper:
 
             self.train = CustomTextDataset(train_texts, train_labels, transform=transform)
             self.test = CustomTextDataset(test_texts, test_labels, transform=transform)
+
+        elif dataset_name == "twitter":
+            from datasets import load_dataset
+            ds = load_dataset("EleutherAI/twitter-sentiment", cache_dir=f"{data_path}/{dataset_name}")
+            train_texts = ds['train']['text']
+            train_labels = ds['train']['label']
+            test_texts = ds['test']['text']
+            test_labels = ds['test']['label']
+
+            self.train = CustomTextDataset(train_texts, train_labels, transform=transform)
+            self.test = CustomTextDataset(test_texts, test_labels, transform=transform)
+
         else:
             raise ValueError(f"Dataset not supported: {dataset_name}")
 

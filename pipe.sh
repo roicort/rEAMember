@@ -1,6 +1,6 @@
 #!/bin/bash
 
-CONFIG="./config/IMDb.yml"
+CONFIG="./config/twitter.yml"
 TIMES_FILE="times.txt"
 
 set -e
