@@ -1,0 +1,20 @@
+app:
+  dataset: FashionMNIST
+  modality: image
+neural:
+  latent_dim:
+  - 256
+  epochs: 50
+  batch_size: 64
+  learning_rate: 0.001
+  patience: 7
+  delta: 0.005
+memory:
+  domain:
+  - 4
+  filling:
+  - 1.0
+  iota: 0.0
+  kappa: 0.0
+  xi: 0.0
+  sigma: 0.1
