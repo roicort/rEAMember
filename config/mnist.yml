@@ -1,9 +1,9 @@
 app:
-  dataset: FashionMNIST
+  dataset: MNIST
   modality: image
 neural:
   latent_dim:
-  - 256
+  - 64
   epochs: 50
   batch_size: 64
   learning_rate: 0.001
