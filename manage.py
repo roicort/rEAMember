@@ -996,6 +996,62 @@ def dream(config, num_cycles, init_type, idx):
 # --------------------------------------------------------------
 # Utils Commands
 
+@cli.command()
+@click.option("--config", help="YAML configuration.")
+def plot(config):
+    # Plots originales de WEAM
+    cfg = OmegaConf.load(config)
+    #config_summary(cfg)
+    path = Path(f"experiments/{cfg.app.dataset}")
+    load_path = path / "memories_results.json"
+    print(f"[INFO] Loading results from: {load_path}")
+
+    with open(load_path) as f:
+        data = json.load(f)
+        df = pd.DataFrame(data)
+        print(df)
+        filling_percent = cfg.memory.filling
+        print(f"[INFO] Filtered results for filling percent '{filling_percent}':")
+        newdf = df[df["filling_percent"] == filling_percent]
+
+        # For every latent dimension, plot the results using plotly
+        for latent in newdf["latent"].unique():
+            subset = newdf[newdf["latent"] == latent]
+            #print(subset)
+            # Bar plot of msize vs unrecognized, correct & incorrect
+            fig1 = px.bar(
+                subset,
+                x=subset["msize"].astype(str),  # Asegura que solo aparecen los presentes
+                y=["unrecognized", "correct", "incorrect"],
+                title=f"Filling Percent: {filling_percent}, Latent: {latent}"
+            )
+            fig1.update_xaxes(type='category')
+
+            # Plot precision and recall vs msize
+            fig2 = px.scatter(
+                subset,
+                x="msize",
+                y=["precision", "recall"],
+                title=f"Precision and Recall vs Memory Size (Latent: {latent}, Filling: {filling_percent})"
+            )
+            for trace in fig2.data:
+                trace.mode = "lines+markers"
+            fig2.update_xaxes(type='category')
+            fig2.update_yaxes(range=[0, 1])
+            fig2.update_layout(
+                xaxis_title="Memory Size (m)",
+                yaxis_title="Value",
+                legend_title="Metrics",
+                width=900,
+                height=600,
+            )
+
+            save_path = path / "plots"
+            if not save_path.exists():
+                save_path.mkdir(parents=True, exist_ok=True)
+
+            fig1.write_image(path / f"plots/memory_results_latent{latent}.svg")
+            fig2.write_image(path / f"plots/memory_scores_latent{latent}.svg")
 
 @cli.command()
 def launch_tensorboard():
