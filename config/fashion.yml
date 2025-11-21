@@ -3,7 +3,7 @@ app:
   modality: image
 
 neural:
-  latent_dim: [64, 128, 256, 512]
+  latent_dim: [32, 64, 128, 256, 512, 1024]
   epochs: 50
   batch_size: 64
   learning_rate: 0.001
@@ -11,7 +11,7 @@ neural:
   delta: 0.005
 
 memory:
-  domain: [4, 8, 16, 32, 64, 128]
+  domain: [1, 2, 3, 4, 8, 16, 32, 64, 128, 512, 1024]
   filling: [0.8, 1.0]
   iota: 0.0
   kappa: 0.0
