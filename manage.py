@@ -7,6 +7,7 @@
 # --------------------------------------------------------------
 # Base
 
+import re
 import json
 import shutil
 import sys
@@ -226,7 +227,10 @@ def train(config):
 
 @encoder.command()
 @click.option("--config", help="YAML configuration.")
-def test(config):
+@click.option(
+    "--n", default=0, help="Number of samples to reconstruct. If 0, reconstruct all."
+)
+def test(config, n):
     "Test encoder."
     cfg = OmegaConf.load(config)
     config_summary(cfg)
@@ -275,7 +279,7 @@ def test(config):
                 click.echo(f"[INFO] Creating path: {reconstructedImgPath}")
                 reconstructedImgPath.mkdir(parents=True, exist_ok=True)
 
-            for i in tqdm(range(len(embeddings_dataset.test.data))):
+            for i in tqdm(range(len(embeddings_dataset.test.data)) if n == 0 else range(min(n, len(embeddings_dataset.test.data)))):
                 f = torch.as_tensor(
                     embeddings_dataset.test.data[i], dtype=torch.float32, device=device
                 ).unsqueeze(0)
@@ -548,17 +552,23 @@ def get_bestparams(config):
     config_summary(cfg)
 
     from reamember.neuralnets.classifier import Classifier
+    from sklearn.model_selection import StratifiedKFold
+    from reamember.neuralnets.classifier import Classifier
+    from reamember.dataset import CustomImageDataset, EmbeddingDatasetWrapper
+
 
     global_results = []
+
+    msizes = cfg.memory.domain
+    filling_percents = cfg.memory.filling
+    folds = cfg.memory.folds
+    noise_level = cfg.memory.noise_level
 
     for latent in cfg.neural.latent_dim:
         path = f"experiments/{cfg.app.dataset}/latent_{latent}"
         path = Path(path)
 
         # Grid search over the memory size (m) and the filling percent.
-
-        msizes = cfg.memory.domain
-        filling_percents = cfg.memory.filling
 
         # Dataset ------------------------------------------------------------
 
@@ -580,6 +590,14 @@ def get_bestparams(config):
 
         input_shape = dataset.train[0][0].shape
         click.echo(f"[INFO] Input shape: {input_shape}")
+
+        X = embeddings_dataset.train.data
+        y = embeddings_dataset.train.targets
+        if isinstance(y, torch.Tensor):
+            y = y.cpu().numpy()
+        if isinstance(X, torch.Tensor):
+            X = X.cpu().numpy()
+        skf = StratifiedKFold(n_splits=folds, shuffle=True, random_state=42)
 
         # Classifier ------------------------------------------------------------
 
@@ -619,110 +637,62 @@ def get_bestparams(config):
                     f"[INFO] Testing msize={msize}, filling_percent={filling_percent}"
                 )
 
-                # Create a new memory instance with the current parameters
-                eam = AssociativeMemory(
-                    n=latent,
-                    m=msize,
-                    xi=cfg.memory.xi,
-                    sigma=cfg.memory.sigma,
-                    iota=cfg.memory.iota,
-                    kappa=cfg.memory.kappa,
-                    device=device,
-                )
+                fold_metrics = []
+                for train_idx, val_idx in skf.split(X, y):
 
-                # Memorize the dataset
-                eam, _, _ = memorize(
-                    eam,
-                    dataset=embeddings_dataset.train,
-                    filling_percent=filling_percent,
-                )
-                percentages, recall, precision = evalm(
-                    eam, classifier=classifier, dataset=embeddings_dataset.test
-                )
+                    X_train, y_train = X[train_idx], y[train_idx]
+                    X_val, y_val = X[val_idx], y[val_idx]
 
-                results.append(
-                    {
-                        "latent": latent,
-                        "msize": msize,
-                        "filling_percent": filling_percent,
+                    fold_train_wrapper = EmbeddingDatasetWrapper(
+                        train=torch.tensor(X_train),
+                        test=torch.tensor(X_val),
+                        labels_train=torch.tensor(y_train),
+                        labels_test=torch.tensor(y_val),
+                        noise_level=noise_level,
+                    )
+
+                    # Create a new memory instance with the current parameters
+                    eam = AssociativeMemory(
+                        n=latent,
+                        m=msize,
+                        xi=cfg.memory.xi,
+                        sigma=cfg.memory.sigma,
+                        iota=cfg.memory.iota,
+                        kappa=cfg.memory.kappa,
+                        device=device,
+                    )
+
+                    # Memorize the dataset
+                    eam, _, _ = memorize(
+                        eam,
+                        dataset=fold_train_wrapper.train,
+                        filling_percent=filling_percent,
+                    )
+
+                    percentages, recall, precision = evalm(
+                        eam, classifier=classifier, dataset=fold_train_wrapper.test
+                    )
+
+                    fold_metrics.append({
                         "precision": precision,
                         "recall": recall,
                         "recognized": percentages[0],
                         "unrecognized": percentages[1],
                         "correct": percentages[2],
                         "incorrect": percentages[3],
-                    }
-                )
+                    })
+
+                avg_metrics = {k: np.mean([fm[k] for fm in fold_metrics]) for k in fold_metrics[0]}
+                results.append({
+                    "latent": latent,
+                    "msize": msize,
+                    "filling_percent": filling_percent,
+                    **avg_metrics
+                })
 
         global_results.extend(results)
 
-        # .................................................................
-
-        df = pd.DataFrame(results)
-
-        fig = go.Figure(
-            data=go.Scatter(
-                x=df["msize"], y=df["precision"], mode="markers+lines", name="Precision"
-            )
-        )
-
-        fig.add_scatter(
-            x=df["msize"], y=df["recall"], mode="markers+lines", name="Recall"
-        )
-
-        fig.update_layout(
-            title=f"Precision and Recall vs Memory Size (latent={latent})",
-            xaxis_title="Memory Size (m)",
-            yaxis_title="Value",
-            legend_title="Metrics",
-            width=900,
-            height=600,
-        )
-
-        fig_path = path / "memory_scores_by_msize.html"
-        click.echo(f"[INFO] Saving grid search results plot to: {fig_path}")
-        fig.write_html(fig_path)
-
-        # .................................................................
-        # Bar plot of Correct response, incorrect and no response
-
-        fig = go.Figure()
-        fig.add_trace(
-            go.Bar(
-                x=df["msize"].astype(str),
-                y=df["correct"] * 100,
-                name="Response Correct",
-                marker_color="green",
-            )
-        )
-        fig.add_trace(
-            go.Bar(
-                x=df["msize"].astype(str),
-                y=df["incorrect"] * 100,
-                name="Response Incorrect",
-                marker_color="red",
-            )
-        )
-        fig.add_trace(
-            go.Bar(
-                x=df["msize"].astype(str),
-                y=df["unrecognized"] * 100,
-                name="No Response / Unrecognized",
-                marker_color="black",
-            )
-        )
-        fig.update_layout(
-            barmode="stack",
-            title=f"Response Types vs Memory Size (latent={latent})",
-            xaxis_title="Memory Size (m)",
-            yaxis_title="Count",
-            legend_title="Response Type",
-            width=900,
-            height=600,
-        )
-        fig_path = path / "memory_response_by_msize.html"
-        click.echo(f"[INFO] Saving response types plot to: {fig_path}")
-        fig.write_html(fig_path)
+    # .................................................................
 
     path = Path(f"experiments/{cfg.app.dataset}")
     save_path = path / "memories_results.json"
@@ -732,7 +702,7 @@ def get_bestparams(config):
 
     df = pd.DataFrame(global_results)
     # Order columns by best precision
-    df = df.sort_values(by="precision", ascending=False)
+    df = df.sort_values(by=["recognized", "precision"], ascending=False)
     # Update cfg with best parameters
     best_params = df.iloc[0].to_dict()
     cfg.neural.latent_dim = [int(best_params["latent"])]
@@ -741,8 +711,9 @@ def get_bestparams(config):
 
     # Save updated config
     config_path = Path(config)
-    click.echo(f"[INFO] Saving updated config with best parameters to: {config_path}")
-    with open(config_path, "w") as f:
+    best_config_path = config_path.with_name(re.sub(r"\.yml$", ".best.yml", config_path.name))
+    click.echo(f"[INFO] Saving updated config with best parameters to: {best_config_path}")
+    with open(best_config_path, "w") as f:
         OmegaConf.save(cfg, f)
 
     click.echo("[INFO] Best parameters search completed.")
@@ -750,7 +721,10 @@ def get_bestparams(config):
 
 @cli.command()
 @click.option("--config", help="YAML configuration.")
-def create_memories(config):
+@click.option(
+    "--n", default=0, help="Number of samples to recall. If 0, recall all."
+)
+def create_memories(config, n):
     "🧠 Create memories."
 
     from omegaconf import ListConfig
@@ -853,7 +827,7 @@ def create_memories(config):
 
     memories_recognition = []
 
-    for i in tqdm(range(len(memories_features))):
+    for i in tqdm(range(len(memories_features))) if n == 0 else range(min(n, len(memories_features))):
         f = torch.as_tensor(
             memories_features[i], dtype=torch.float32, device=device
         ).unsqueeze(0)
