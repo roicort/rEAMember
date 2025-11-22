@@ -553,8 +553,7 @@ def get_bestparams(config):
 
     from reamember.neuralnets.classifier import Classifier
     from sklearn.model_selection import StratifiedKFold
-    from reamember.neuralnets.classifier import Classifier
-    from reamember.dataset import CustomImageDataset, EmbeddingDatasetWrapper
+    from reamember.dataset import EmbeddingDatasetWrapper
 
 
     global_results = []
@@ -563,6 +562,20 @@ def get_bestparams(config):
     filling_percents = cfg.memory.filling
     folds = cfg.memory.folds
     noise_level = cfg.memory.noise_level
+
+    from rich.progress import Progress, SpinnerColumn, TimeElapsedColumn, MofNCompleteColumn, TimeRemainingColumn, TaskProgressColumn
+
+    progress = Progress(
+        SpinnerColumn(),
+        *Progress.get_default_columns(),
+        TimeElapsedColumn(),
+        MofNCompleteColumn(),
+        speed_estimate_period=5.0,
+    )
+
+    progress.start()
+
+    latent_task = progress.add_task(description=f"[magenta]Latent: {cfg.neural.latent_dim[0]}", total=len(cfg.neural.latent_dim), start=True)
 
     for latent in cfg.neural.latent_dim:
         path = f"experiments/{cfg.app.dataset}/latent_{latent}"
@@ -631,13 +644,15 @@ def get_bestparams(config):
 
         results = []
 
-        for msize in tqdm(msizes):
-            for filling_percent in tqdm(filling_percents):
-                click.echo(
-                    f"[INFO] Testing msize={msize}, filling_percent={filling_percent}"
-                )
+        msize_task = progress.add_task(f"[green]Memory Size: {msizes[0]}", total=len(msizes), start=True)
+        filling_task = progress.add_task(f"[blue]Filling Percent: {filling_percents[0]}", total=len(filling_percents), start=True)
+        fold_task = progress.add_task("[cyan]Folds", total=folds, start=True) 
+
+        for msize in msizes:
+            for filling_percent in filling_percents:
 
                 fold_metrics = []
+                progress.reset(fold_task)
                 for train_idx, val_idx in skf.split(X, y):
 
                     X_train, y_train = X[train_idx], y[train_idx]
@@ -681,7 +696,7 @@ def get_bestparams(config):
                         "correct": percentages[2],
                         "incorrect": percentages[3],
                     })
-
+                    progress.update(fold_task, advance=1)
                 avg_metrics = {k: np.mean([fm[k] for fm in fold_metrics]) for k in fold_metrics[0]}
                 results.append({
                     "latent": latent,
@@ -689,9 +704,14 @@ def get_bestparams(config):
                     "filling_percent": filling_percent,
                     **avg_metrics
                 })
-
+                progress.update(filling_task, advance=1, description=f"[blue]Filling Percent: {filling_percent}")
+            progress.reset(filling_task)
+            progress.update(msize_task, advance=1, description=f"[green]Memory Size: {msize}")
+        progress.reset(msize_task)
         global_results.extend(results)
+        progress.update(latent_task, advance=1, description=f"[magenta]Latent: {latent}")
 
+    progress.stop()
     # .................................................................
 
     path = Path(f"experiments/{cfg.app.dataset}")
