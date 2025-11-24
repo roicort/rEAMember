@@ -573,10 +573,15 @@ def get_bestparams(config):
         speed_estimate_period=5.0,
     )
 
+    latent_task = progress.add_task(f"[magenta]Latent: {cfg.neural.latent_dim[0]}", total=len(cfg.neural.latent_dim), start=True)
+    msize_task = progress.add_task(f"[green]Memory Size: {msizes[0]}", total=len(msizes))
+    filling_task = progress.add_task(f"[blue]Filling Percent: {filling_percents[0]}", total=len(filling_percents))
+    fold_task = progress.add_task("[cyan]Folds", total=folds)
+
     progress.start()
 
-    latent_task = progress.add_task(description=f"[magenta]Latent: {cfg.neural.latent_dim[0]}", total=len(cfg.neural.latent_dim), start=True)
-
+    progress.start_task(latent_task)
+    
     for latent in cfg.neural.latent_dim:
         path = f"experiments/{cfg.app.dataset}/latent_{latent}"
         path = Path(path)
@@ -644,9 +649,9 @@ def get_bestparams(config):
 
         results = []
 
-        msize_task = progress.add_task(f"[green]Memory Size: {msizes[0]}", total=len(msizes), start=True)
-        filling_task = progress.add_task(f"[blue]Filling Percent: {filling_percents[0]}", total=len(filling_percents), start=True)
-        fold_task = progress.add_task("[cyan]Folds", total=folds, start=True) 
+        progress.start_task(msize_task)
+        progress.start_task(filling_task)
+        progress.start_task(fold_task)
 
         for msize in msizes:
             for filling_percent in filling_percents:
@@ -847,15 +852,20 @@ def create_memories(config, n):
 
     memories_recognition = []
 
-    for i in tqdm(range(len(memories_features))) if n == 0 else range(min(n, len(memories_features))):
+    for i in tqdm(range(len(memories_features))):
         f = torch.as_tensor(
             memories_features[i], dtype=torch.float32, device=device
         ).unsqueeze(0)
         with torch.no_grad():
             memories_recognition.append(classifier.predict(f).cpu().numpy())
-            torchvision.utils.save_image(
-                decoder.decode(f).cpu(), reconstructedImgPath / f"img_{i}.png"
-            )  # Check
+
+    for i in tqdm(range(len(memories_features)) if n == 0 else range(min(n, len(memories_features)))):
+        f = torch.as_tensor(
+            memories_features[i], dtype=torch.float32, device=device
+        ).unsqueeze(0)
+        torchvision.utils.save_image(
+            decoder.decode(f).cpu(), reconstructedImgPath / f"img_{i}.png"
+        )  # Check
 
     # Logs --------------------------------------------------------------------
 
@@ -879,9 +889,9 @@ def create_memories(config, n):
         width=800,
         height=800,
     )
-    fig_path = path / "memories_confmatrix.html"
+    fig_path = path / "memories_confmatrix.svg"
     click.echo(f"[INFO] Saving confusion matrix to: {fig_path}")
-    fig.write_html(fig_path)
+    fig.write_image(str(fig_path))
 
     # click.echo(f"[INFO] Saving memories to: {path / 'memories.pth'}")
     # torch.save({
@@ -1017,6 +1027,11 @@ def plot(config):
                 subset,
                 x=subset["msize"].astype(str),  # Asegura que solo aparecen los presentes
                 y=["unrecognized", "correct", "incorrect"],
+                color_discrete_map={
+                    "unrecognized": "blue",
+                    "correct": "green",
+                    "incorrect": "red",
+                },
                 title=f"Filling Percent: {filling_percent}, Latent: {latent}"
             )
             fig1.update_xaxes(type='category')
@@ -1026,6 +1041,10 @@ def plot(config):
                 subset,
                 x="msize",
                 y=["precision", "recall"],
+                color_discrete_map={
+                    "precision": "orange",
+                    "recall": "purple",
+                },
                 title=f"Precision and Recall vs Memory Size (Latent: {latent}, Filling: {filling_percent})"
             )
             for trace in fig2.data:
