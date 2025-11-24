@@ -1,0 +1,45 @@
+site_name: rEAMember Docs
+site_url: https://github.com/roicort/rEAMember
+repo_url: https://github.com/roicort/rEAMember
+repo_name: roicort/rEAMember
+docs_dir: src
+theme:
+  name: material
+  palette:
+    - scheme: slate
+      primary: custom
+      accent: custom
+  font:
+    text: Roboto
+    code: Fira Mono
+  #logo: assets/logo.svg
+extra_css:
+  - assets/custom.css
+nav:
+  - Home: index.md
+  - Usage: usage.md
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            extra:
+              show_root_toc_entry: true
+              show_source: true
+              docstring_style: google
+              separate_signature: true
+              show_if_no_docstring: true
+              show_private_members: true
+              show_special_members: true
+              members_order: alphabetical
+              filters:
+                - "!^_.*"
+#extra:
+#  alternate:
+#    - name: English
+#      link: /en/
+#      lang: en
+#    - name: Español
+#      link: /es/
+#      lang: es

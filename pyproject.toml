@@ -25,11 +25,14 @@ dependencies = [
     "scikit-learn>=1.7.0",
     "plotly>=6.1.2",
     "kaleido>=1.0.0",
-    "pdoc>=15.0.4",
     "rich-click>=1.8.9",
     "nbformat>=5.10.4",
     "transformers>=4.57.0",
     "datasets>=4.1.1",
+    "mkdocs>=1.6.1",
+    "mkdocs-material>=9.7.0",
+    "mkdocstrings>=0.30.1",
+    "mkdocstrings-python>=1.19.0",
 ]
 
 [tool.uv.sources]
