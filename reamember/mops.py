@@ -144,8 +144,8 @@ def evalm(eam, classifier, dataset):
     unrecognized_count = len(answers) - recognized_count
     recognized_percentage = recognized_count / len(answers)
     unrecognized_percentage = unrecognized_count / len(answers)
-    correct_count_percentage = true_positive / len(predictions)
-    incorrect_count_percentage = error_count / len(predictions)
+    correct_count_percentage = true_positive / len(answers)
+    incorrect_count_percentage = error_count / len(answers)
 
     recall = true_positive / len(answers)
     precision = (
