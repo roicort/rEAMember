@@ -4,13 +4,15 @@ import sys
 
 import numpy as np
 import torch
-from PIL import Image
 from torch.utils.data import Dataset
 from torchvision import transforms
 
 path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../data/"))
 sys.path.append(path)
 from SPOTS.utils import SPOT10Loader
+
+from datasets.features import Image as HFImage
+from PIL import Image as PILImage
 
 # Custom Dataset
 
@@ -21,7 +23,7 @@ class CustomImageDataset(Dataset):
         data,
         targets,
         transform=transforms.ToTensor(),
-        target_transform=torch.tensor,
+        target_transform=torch.as_tensor,
     ):
         self.data = data
         self.targets = targets
@@ -41,7 +43,65 @@ class CustomImageDataset(Dataset):
             target = self.target_transform(target)
         assert img.ndim == 3, f"Shape incorrecto: {img.shape}"
         return img, target
+    
+class HFDataProxy:
+    """Module-level proxy that lazily pulls images from a HF dataset.
 
+    Placing this at module level makes it picklable for use with
+    DataLoader(num_workers>0) and multiprocessing.
+    """
+
+    def __init__(self, hf_ds):
+        self.hf_ds = hf_ds
+
+    def __len__(self):
+        return len(self.hf_ds)
+
+    def __getitem__(self, idx):
+        item = self.hf_ds[idx]
+        img = item["image"]
+        if isinstance(img, np.ndarray):
+            img = PILImage.fromarray(img)
+        return img
+
+
+class HFImageDataset(CustomImageDataset):
+
+    def __init__(self, hf_ds, label_col=None, label_map=None, transform=None, target_transform=torch.as_tensor):
+        """Wrap a Hugging Face image Dataset but provide the same
+        interface as `CustomImageDataset` without materializing all images.
+
+        We create a lightweight proxy for `data` that returns raw images from
+        the HF dataset on indexing, and precompute `targets` if possible.
+        """
+        self.hf_ds = hf_ds
+        self.label_col = label_col
+        self.label_map = label_map
+
+        # Determine labels if possible
+        labels = None
+        if self.label_col is not None:
+            labels_list = []
+            for i in range(len(self.hf_ds)):
+                it = self.hf_ds[i]
+                t = it[self.label_col]
+                if self.label_map is not None and isinstance(t, str):
+                    t = self.label_map[t]
+                try:
+                    labels_list.append(int(t))
+                except Exception:
+                    labels_list.append(t)
+            try:
+                labels = torch.as_tensor(labels_list)
+            except Exception:
+                labels = labels_list
+
+        data_proxy = HFDataProxy(self.hf_ds)
+
+        super().__init__(data=data_proxy, targets=labels, transform=transform, target_transform=target_transform)
+
+    def __len__(self):
+        return len(self.hf_ds)
 
 class CustomTextDataset(Dataset):
     def __init__(
@@ -49,7 +109,7 @@ class CustomTextDataset(Dataset):
         texts,
         targets,
         transform=transforms.ToTensor(),
-        target_transform=torch.tensor,
+        target_transform=torch.as_tensor,
     ):
         self.texts = texts
         self.targets = targets
@@ -115,6 +175,51 @@ class ImageDatasetWrapper:
 
             self.train = CustomImageDataset(images_train, targets_train)
             self.test = CustomImageDataset(images_test, targets_test)
+
+        elif dataset_name == "WikiArt":
+
+            from datasets import load_dataset
+
+            ds = load_dataset("Artificio/WikiArt")
+
+            # If no test split, create one from train (default 10% test)
+            if "test" not in ds:
+                test_size = kwargs.get("test_size", 0.1)
+                seed = kwargs.get("seed", 42)
+                split = ds["train"].train_test_split(test_size=test_size, seed=seed)
+                ds["train"] = split["train"]
+                ds["test"] = split["test"]
+
+            label_col = 'genre'
+
+            # Build a mapping for string labels to integer indices (if needed)
+            label_map = None
+            if label_col:
+                sample_label = ds["train"][label_col][0]
+                if isinstance(sample_label, str):
+                    unique = sorted(list(set(ds["train"][label_col])))
+                    label_map = {c: i for i, c in enumerate(unique)}
+
+            # Create PyTorch datasets that apply transforms on the fly (no full memory copy)
+            self.train = HFImageDataset(
+                ds["train"], label_col=label_col, label_map=label_map, transform=transform
+            )
+            self.test = HFImageDataset(
+                ds["test"], label_col=label_col, label_map=label_map, transform=transform
+            )
+
+            # Expose number of classes if possible
+            try:
+                if label_map is not None:
+                    self.n_classes = len(label_map)
+                elif label_col is not None:
+                    self.n_classes = len(set(ds["train"][label_col]))
+                else:
+                    self.n_classes = None
+            except Exception:
+                self.n_classes = None
+
+
         else:
             raise ValueError(f"Dataset not supported: {dataset_name}")
 
@@ -154,22 +259,6 @@ class TextDatasetWrapper:
             )
             self.test = CustomTextDataset(test_texts, test_labels, transform=transform)
 
-        elif dataset_name == "twitter":
-            from datasets import load_dataset
-
-            ds = load_dataset(
-                "EleutherAI/twitter-sentiment", cache_dir=f"{data_path}/{dataset_name}"
-            )
-            train_texts = ds["train"]["text"]
-            train_labels = ds["train"]["label"]
-            test_texts = ds["test"]["text"]
-            test_labels = ds["test"]["label"]
-
-            self.train = CustomTextDataset(
-                train_texts, train_labels, transform=transform
-            )
-            self.test = CustomTextDataset(test_texts, test_labels, transform=transform)
-
         else:
             raise ValueError(f"Dataset not supported: {dataset_name}")
 
@@ -197,7 +286,9 @@ class EmbeddingDatasetWrapper:
     Wrapper que expone .train y .test como datasets de embeddings y etiquetas.
     """
 
-    def __init__(self, train, test, labels_train=None, labels_test=None, noise_level=0.0):
+    def __init__(
+        self, train, test, labels_train=None, labels_test=None, noise_level=0.0
+    ):
         if isinstance(labels_train, np.ndarray):
             labels_train = torch.from_numpy(labels_train)
         if isinstance(labels_test, np.ndarray):
