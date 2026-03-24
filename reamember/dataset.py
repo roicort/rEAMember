@@ -6,6 +6,7 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset
 from torchvision import transforms
+from datasets import load_dataset as load_dataset_hf
 
 path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../data/"))
 sys.path.append(path)
@@ -178,9 +179,7 @@ class ImageDatasetWrapper:
 
         elif dataset_name == "WikiArt":
 
-            from datasets import load_dataset
-
-            ds = load_dataset("Artificio/WikiArt")
+            ds = load_dataset_hf("Artificio/WikiArt")
 
             # If no test split, create one from train (default 10% test)
             if "test" not in ds:
@@ -231,7 +230,8 @@ def _identity(x):
 class TextDatasetWrapper:
     def __init__(
         self,
-        dataset_name="IMDB",
+        dataset_name="npvinHnivqn/EnglishDictionary",
+        column="word",
         data_path="./data",
         transform=None,
         custom_class=None,
@@ -241,26 +241,25 @@ class TextDatasetWrapper:
         if transform is None:
             transform = _identity
 
-        if dataset_name == "IMDb":
-            from datasets import load_dataset
+        ds = load_dataset_hf(
+            dataset_name, cache_dir=f"{data_path}/{dataset_name}"
+        )
 
-            ds = load_dataset(
-                "stanfordnlp/imdb", cache_dir=f"{data_path}/{dataset_name}"
-            )
-            train_texts = ds["train"]["text"]
-            train_labels = [
-                1 if label == "pos" else 0 for label in ds["train"]["label"]
-            ]
-            test_texts = ds["test"]["text"]
-            test_labels = [1 if label == "pos" else 0 for label in ds["test"]["label"]]
+        # Detect if no test split and create one from train (default 10% test)
+        if "test" not in ds:
+            test_size = kwargs.get("test_size", 0.1)
+            seed = kwargs.get("seed", 42)
+            split = ds["train"].train_test_split(test_size=test_size, seed=seed)
+            ds["train"] = split["train"]
+            ds["test"] = split["test"]
 
-            self.train = CustomTextDataset(
-                train_texts, train_labels, transform=transform
-            )
-            self.test = CustomTextDataset(test_texts, test_labels, transform=transform)
+        train_texts = ds["train"][column]
+        test_texts = ds["test"][column]
 
-        else:
-            raise ValueError(f"Dataset not supported: {dataset_name}")
+        self.train = CustomTextDataset(
+            train_texts, None, transform=transform
+        )
+        self.test = CustomTextDataset(test_texts, None, transform=transform)
 
 
 class EmbeddingDataset(Dataset):
