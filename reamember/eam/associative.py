@@ -206,7 +206,9 @@ class TorchAssociativeMemory(torch.nn.Module):
         return norm_weights * columns # Multiplicar todas las columnas por sus respectivos pesos a la vez
 
     def normalized(self, j, v):
-        return self._normalize(self.relation[:, j], v, self._sigma, self._scale)
+        column = self.relation[:, j].float().unsqueeze(1)
+        mean = torch.as_tensor([v], dtype=torch.float32, device=self.device)
+        return self._normalize(column, mean, self._sigma, self._scale).squeeze(1)
 
     def _weights(self, vector):
         # Vector debe estar en el dispositivo correcto y ser tipo long
@@ -286,10 +288,10 @@ class TorchAssociativeMemory(torch.nn.Module):
                 "and given",
                 vector.size(0),
             )
-        v = torch.as_tensor(vector, dtype=torch.int16, device=self.device)
-        v = torch.nan_to_num(v, nan=self.undefined)
+        v = torch.as_tensor(vector, dtype=torch.float32, device=self.device)
+        v = torch.nan_to_num(v, nan=float(self.undefined))
         v = torch.where((v > self.m) | (v < 0), self.undefined, v)
-        return v
+        return v.to(torch.int16)
     
     def revalidate(self, vector):
         v = vector.to(torch.float32)
