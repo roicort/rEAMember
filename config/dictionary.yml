@@ -1,6 +1,6 @@
 app:
   dataset: npvinHnivqn/EnglishDictionary
-  column: word
+  column: definition
   modality: text
 
 neural:

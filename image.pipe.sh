@@ -1,6 +1,6 @@
 #!/bin/bash
 
-CONFIG="./config/fashion.yml"
+CONFIG="./config/mnist.yml"
 TIMES_FILE="times.txt"
 
 set -e

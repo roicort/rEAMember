@@ -1,19 +1,20 @@
 app:
   dataset: SPOTS
   modality: image
+
 neural:
-  latent_dim:
-  - 64
+  latent_dim: [32, 64, 128, 256, 512, 1024]
   epochs: 50
   batch_size: 64
   learning_rate: 0.001
   patience: 7
   delta: 0.005
+
 memory:
-  domain:
-  - 4
-  filling:
-  - 1.0
+  folds: 5
+  domain: [1, 2, 3, 4, 8, 16, 32, 64, 128, 512, 1024]
+  filling: [0.8, 1.0]
+  noise_level: 0.0
   iota: 0.0
   kappa: 0.0
   xi: 0.0
