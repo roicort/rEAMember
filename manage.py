@@ -11,7 +11,6 @@ import re
 import json
 import shutil
 import sys
-from collections.abc import Mapping
 from pathlib import Path
 
 import numpy as np
@@ -23,18 +22,14 @@ import torchvision
 from nltk.metrics import edit_distance
 from omegaconf import OmegaConf
 from plotly import graph_objects as go
-from rich import box
-from rich.columns import Columns
-from rich.console import Console
-from rich.panel import Panel
 
 # --------------------------------------------------------------
 # Rich
-from rich.table import Table
+
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
 from tqdm import tqdm
 
-from reamember.config import setConfig
+from reamember.config import loadValConfig, setDeviceConfig
 from reamember.dataset import ImageDatasetWrapper, TextDatasetWrapper
 
 # --------------------------------------------------------------
@@ -46,34 +41,67 @@ from reamember.neuralnets.autoencoder import Autoencoder
 from reamember.neuralnets.classifier import Classifier
 from reamember.neuralnets.transformer import SONAR
 
+from reamember.utils import (
+    rich_conf,
+    config_summary,
+    ensure_directory,
+    fail_if_text_modality,
+    get_experiment_path,
+    get_scalar_config_value,
+    decode_text_embeddings,
+    load_embeddings_dataset,
+    load_model_state,
+)
+
 ##########################################################################################
 # Config
 ##########################################################################################
-
-# Configure rich click for better CLI output
-rich_conf = click.RichHelpConfiguration(
-    style_option="bold cyan",
-    style_argument="bold cyan",
-    style_command="bold cyan",
-    style_switch="bold green",
-    style_metavar="bold yellow",
-    style_metavar_separator="dim",
-    style_usage="bold yellow",
-    style_usage_command="bold",
-    style_helptext_first_line="",
-    style_helptext="dim",
-    style_option_default="dim",
-    style_required_short="red",
-    style_required_long="dim red",
-    style_options_panel_border="dim",
-    style_commands_panel_border="dim",
-)
 
 # --------------------------------------------------------------
 # Set the device for PyTorch
 
 # This will automatically select GPU if available, otherwise CPU
-device = setConfig()
+device = setDeviceConfig()
+EXPERIMENTS_ROOT = Path("experiments")
+LOGS_PATH = Path("logs")
+
+def create_sonar_model(runtime_device):
+    """
+    Build SONAR using MPS for encode when available and CPU for decode.
+    """
+    if getattr(runtime_device, "type", None) == "mps":
+        click.echo(
+            "[WARNING] SONAR decode is not supported on MPS. Using MPS for encode and CPU for decode."
+        )
+        return SONAR(
+            encode_device=runtime_device,
+            decode_device=torch.device("cpu"),
+        )
+    return SONAR(device=runtime_device)
+
+
+def create_associative_memory(cfg, latent, domain):
+    """
+    Create an associative memory instance from config values.
+    """
+    return AssociativeMemory(
+        n=latent,
+        m=domain,
+        xi=cfg.memory.xi,
+        sigma=cfg.memory.sigma,
+        iota=cfg.memory.iota,
+        kappa=cfg.memory.kappa,
+        device=device,
+    )
+
+
+def load_cli_config(config):
+    try:
+        return loadValConfig(config)
+    except Exception as exc:
+        raise click.ClickException(
+            f"Invalid configuration '{config}': {exc}"
+        ) from exc
 
 ############################################################################################
 # CLI Commands
@@ -98,94 +126,6 @@ def encoder():
 def classifier():
     """Classifier related commands."""
     pass
-
-
-# --------------------------------------------------------------
-# Format Utils
-
-
-def config_summary(cfg):
-    """
-    Summarize the configuration.
-    """
-    # To python native types
-    cfg_container = OmegaConf.to_container(cfg, resolve=True)
-
-    def format_value(value):
-        if isinstance(value, float):
-            return f"{value:.6g}"
-        if value is None:
-            return "null"
-        if isinstance(value, (list, tuple)):
-            simple = all(not isinstance(x, (dict, list, tuple)) for x in value)
-            return (
-                ", ".join(map(str, value))
-                if len(value) <= 10 and simple
-                else f"[{len(value)} items]"
-            )
-        if isinstance(value, dict):
-            return json.dumps(value, ensure_ascii=False)
-        return str(value)
-
-    def section_panel(title: str, data: dict) -> Panel:
-        sub = Table(box=box.MINIMAL_HEAVY_HEAD)
-        sub.add_column("Parameter", style="bold cyan")
-        sub.add_column("Value", style="magenta")
-        for k, v in data.items():
-            sub.add_row(str(k), format_value(v))
-        return Panel(sub, title=f"[bold]{title}[/bold]", border_style="dim")
-
-    # Si existen secciones conocidas, mostrar subtables anidadas
-    sections = [
-        k
-        for k in ("app", "neural", "memory")
-        if k in cfg_container and isinstance(cfg_container[k], Mapping)
-    ]
-
-    if sections:
-        panels = [section_panel(sec, cfg_container[sec]) for sec in sections]
-
-        outer = Panel(
-            Columns(panels, expand=True, equal=True),
-            title="[bold]config[/bold]",
-            border_style="cyan",
-            padding=(0, 1),
-            expand=True,
-        )
-        Console().print(outer)
-
-
-def fail_if_text_modality(cfg, command_name):
-    """
-    Abort early for commands that are not implemented for text modality yet.
-    """
-    if cfg.app.modality == "text":
-        raise click.ClickException(
-            f"El comando '{command_name}' no esta habilitado cuando app.modality es 'text'."
-        )
-
-
-def decode_text_embeddings(model, embeddings, device=None, batch_size=32):
-    """
-    Decode embeddings into text batches using SONAR.
-    """
-    reconstructed_texts = []
-
-    for start in tqdm(range(0, len(embeddings), batch_size), desc="Decoding texts"):
-        batch = torch.as_tensor(
-            embeddings[start : start + batch_size],
-            dtype=torch.float32,
-            device=device,
-        )
-        with torch.no_grad():
-            reconstructed_batch = model.decode(batch)
-
-        if isinstance(reconstructed_batch, str):
-            reconstructed_texts.append(reconstructed_batch)
-        else:
-            reconstructed_texts.extend(reconstructed_batch)
-
-    return reconstructed_texts
 
 
 def text_reconstruction_metrics(
@@ -308,34 +248,15 @@ def get_besttext_params(cfg, config):
     progress.start_task(latent_task)
 
     for latent in cfg.neural.latent_dim:
-        path = cfg.app.dataset.replace("/", "-")
-        path = f"experiments/{path}/latent_{latent}"
-        path = Path(path)
-
-        try:
-            click.echo(
-                f"[INFO] Loading embeddings dataset from: {path / 'embeddings.pth'}"
-            )
-            embeddings_dataset = torch.load(
-                path / "embeddings.pth", map_location=device, weights_only=False
-            )
-        except FileNotFoundError:
-            click.echo(f"[ERROR] Embeddings file not found: {path / 'embeddings.pth'}")
-            click.echo("[INFO] Please run `get-embeddings` command first.")
-            sys.exit(1)
+        path = get_experiment_path(cfg.app.dataset, EXPERIMENTS_ROOT, latent)
+        embeddings_dataset = load_embeddings_dataset(path, device)
 
         dataset = TextDatasetWrapper(
             dataset_name=cfg.app.dataset,
             column=cfg.app.column,
         )
 
-        if getattr(device, "type", None) == "mps":
-            click.echo(
-                "[WARNING] MPS device not supported in Fairseq pipelines. Using CPU instead."
-            )
-            transformer = SONAR(device=torch.device("cpu"))
-        else:
-            transformer = SONAR(device=device)
+        transformer = create_sonar_model(device)
 
         X = embeddings_dataset.train.data
         if isinstance(X, torch.Tensor):
@@ -366,15 +287,7 @@ def get_besttext_params(cfg, config):
                         noise_level=noise_level,
                     )
 
-                    eam = AssociativeMemory(
-                        n=latent,
-                        m=msize,
-                        xi=cfg.memory.xi,
-                        sigma=cfg.memory.sigma,
-                        iota=cfg.memory.iota,
-                        kappa=cfg.memory.kappa,
-                        device=device,
-                    )
+                    eam = create_associative_memory(cfg, latent, msize)
 
                     eam, _, _ = memorize(
                         eam,
@@ -448,7 +361,7 @@ def get_besttext_params(cfg, config):
 
     progress.stop()
 
-    path = Path(f"experiments/{cfg.app.dataset}")
+    path = get_experiment_path(cfg, EXPERIMENTS_ROOT, latent)
     save_path = path / "memories_results.json"
     click.echo(f"[INFO] Saving results to: {save_path}")
     with open(save_path, "w") as f:
@@ -482,11 +395,11 @@ def get_besttext_params(cfg, config):
 # Encoder Commands
 
 
-@encoder.command()
+@encoder.command(name="train")
 @click.option("--config", help="YAML configuration.")
-def train(config):
+def train_encoder(config):
     "🏃🏻‍♂️‍➡️ Train autoencoder."
-    cfg = OmegaConf.load(config)
+    cfg = load_cli_config(config)
     config_summary(cfg)
 
     if cfg.app.modality == "image":
@@ -500,12 +413,7 @@ def train(config):
         click.echo(f"[INFO] Input shape: {input_shape}")
 
         for latent in cfg.neural.latent_dim:
-            path = cfg.app.dataset.replace("/", "-")
-            path = f"experiments/{path}/latent_{latent}"
-            path = Path(path)
-            if not path.exists():
-                click.echo(f"[INFO] Creating path: {path}")
-                path.mkdir(parents=True, exist_ok=True)
+            path = ensure_directory(get_experiment_path(cfg, EXPERIMENTS_ROOT, latent))
 
             train_autoencoder(
                 config=cfg.neural,
@@ -534,26 +442,21 @@ def train(config):
             OmegaConf.save(cfg, f)
 
         for latent in cfg.neural.latent_dim:
-            path = cfg.app.dataset.replace("/", "-")
-            path = f"experiments/{path}/latent_{latent}"
-            path = Path(path)
-            if not path.exists():
-                click.echo(f"[INFO] Creating path: {path}")
-                path.mkdir(parents=True, exist_ok=True)
+            path = ensure_directory(get_experiment_path(cfg, EXPERIMENTS_ROOT, latent))
 
             raise NotImplementedError(
                 "Fine tuning SONAR is not implemented yet. Please use the pretrained model."
             )
 
 
-@encoder.command()
+@encoder.command(name="test")
 @click.option("--config", help="YAML configuration.")
 @click.option(
     "--n", default=0, help="Number of samples to reconstruct. If 0, reconstruct all."
 )
-def test(config, n):
+def test_encoder(config, n):
     "Test encoder."
-    cfg = OmegaConf.load(config)
+    cfg = load_cli_config(config)
     config_summary(cfg)
 
     if cfg.app.modality == "image":
@@ -568,38 +471,14 @@ def test(config, n):
         input_shape = dataset.test[0][0].shape
 
         for latent in cfg.neural.latent_dim:
-            path = cfg.app.dataset.replace("/", "-")
-            path = f"experiments/{path}/latent_{latent}"
-            path = Path(path)
+            path = get_experiment_path(cfg, EXPERIMENTS_ROOT, latent)
 
             autoencoder = Autoencoder(input_shape=input_shape, latent_dim=latent)
             encoder_path = path / "autoencoder.pth"
 
-            if encoder_path.exists():
-                click.echo(f"[INFO] Loading encoder from: {encoder_path}")
-                autoencoder.load_state_dict(
-                    torch.load(encoder_path, map_location=device)
-                )
-                autoencoder.to(device)
-            else:
-                click.echo(f"[ERROR] Encoder does not exist in: {encoder_path}")
-                sys.exit(1)
-
-            try:
-                embeddings_dataset = torch.load(
-                    path / "embeddings.pth", map_location=device, weights_only=False
-                )
-            except FileNotFoundError:
-                click.echo(
-                    f"[ERROR] Embeddings file not found: {path / 'embeddings.pth'}"
-                )
-                click.echo("[INFO] Please run `get-embeddings` command first.")
-                sys.exit(1)
-
-            reconstructedImgPath = Path(path / "reconstructed")
-            if not reconstructedImgPath.exists():
-                click.echo(f"[INFO] Creating path: {reconstructedImgPath}")
-                reconstructedImgPath.mkdir(parents=True, exist_ok=True)
+            load_model_state(autoencoder, encoder_path, "Encoder", device=device)
+            embeddings_dataset = load_embeddings_dataset(path, device)
+            reconstructedImgPath = ensure_directory(path / "reconstructed")
 
             for i in tqdm(
                 range(len(embeddings_dataset.test.data))
@@ -631,33 +510,11 @@ def test(config, n):
         )
 
         for latent in cfg.neural.latent_dim:
-            path = cfg.app.dataset.replace("/", "-")
-            path = f"experiments/{path}/latent_{latent}"
-            path = Path(path)
+            path = get_experiment_path(cfg, EXPERIMENTS_ROOT, latent)
 
-            if getattr(device, "type", None) == "mps":
-                click.echo(
-                    "[WARNING] MPS device not supported in Fairseq pipelines. Using CPU instead."
-                )
-                transformer = SONAR(device=torch.device("cpu"))
-            else:
-                transformer = SONAR(device=device)
-
-            try:
-                embeddings_dataset = torch.load(
-                    path / "embeddings.pth", map_location=device, weights_only=False
-                )
-            except FileNotFoundError:
-                click.echo(
-                    f"[ERROR] Embeddings file not found: {path / 'embeddings.pth'}"
-                )
-                click.echo("[INFO] Please run `get-embeddings` command first.")
-                sys.exit(1)
-
-            reconstructedTextPath = Path(path / "reconstructed")
-            if not reconstructedTextPath.exists():
-                click.echo(f"[INFO] Creating path: {reconstructedTextPath}")
-                reconstructedTextPath.mkdir(parents=True, exist_ok=True)
+            transformer = create_sonar_model(device)
+            embeddings_dataset = load_embeddings_dataset(path, device=device)
+            reconstructedTextPath = ensure_directory(path / "reconstructed")
 
             total = len(embeddings_dataset.test.data)
             limit = total if n == 0 else min(n, total)
@@ -726,15 +583,7 @@ def test(config, n):
 
             with domain_progress:
                 for domain in domains:
-                    eam = AssociativeMemory(
-                        n=latent,
-                        m=domain,
-                        xi=cfg.memory.xi,
-                        sigma=cfg.memory.sigma,
-                        iota=cfg.memory.iota,
-                        kappa=cfg.memory.kappa,
-                        device=device,
-                    )
+                    eam = create_associative_memory(cfg, latent, domain)
 
                     eam, _, _ = memorize(
                         eam,
@@ -838,7 +687,7 @@ def get_embeddings(config):
 
     from reamember.embeddings import get_embeddings
 
-    cfg = OmegaConf.load(config)
+    cfg = load_cli_config(config)
     config_summary(cfg)
 
     # Load Dataset
@@ -852,20 +701,19 @@ def get_embeddings(config):
         input_shape = dataset.train[0][0].shape
 
         for latent in cfg.neural.latent_dim:
-            path = cfg.app.dataset.replace("/", "-")
-            path = f"experiments/{path}/latent_{latent}"
-            path = Path(path)
+            path = get_experiment_path(cfg, EXPERIMENTS_ROOT, latent)
 
             # Load Autoencoder
 
             encoder = Autoencoder(input_shape=input_shape, latent_dim=latent)
             encoder_path = path / "autoencoder.pth"
-            if encoder_path.exists():
-                click.echo(f"[INFO] Loading encoder from: {encoder_path}")
-                encoder.load_state_dict(torch.load(encoder_path, map_location=device))
-            else:
-                click.echo(f"[ERROR] Encoder path does not exist: {encoder_path}")
-                sys.exit(1)
+            load_model_state(
+                encoder,
+                encoder_path,
+                "Encoder",
+                device=device,
+                move_to_device=False,
+            )
 
             get_embeddings(encoder, dataset, device=device, save_path=path)
 
@@ -876,17 +724,9 @@ def get_embeddings(config):
         )
 
         for latent in cfg.neural.latent_dim:
-            path = cfg.app.dataset.replace("/", "-")
-            path = f"experiments/{path}/latent_{latent}"
-            path = Path(path)
+            path = get_experiment_path(cfg, EXPERIMENTS_ROOT, latent)
 
-            if getattr(device, "type", None) == "mps":
-                click.echo(
-                    "[WARNING] MPS device not supported in Fairseq pipelines. Using CPU instead."
-                )
-                model = SONAR(device=torch.device("cpu"))
-            else:
-                model = SONAR(device=device)
+            model = create_sonar_model(device)
 
             get_embeddings(
                 model,
@@ -904,30 +744,20 @@ def get_embeddings(config):
 # Classifier Commands
 
 
-@classifier.command()
+@classifier.command(name="train")
 @click.option("--config", help="YAML configuration.")
-def train(config):
+def train_classifier_command(config):
     "🏃🏻‍♂️‍➡️ Train classifier."
 
     from reamember.train import train_classifier
 
-    cfg = OmegaConf.load(config)
+    cfg = load_cli_config(config)
     fail_if_text_modality(cfg, "classifier train")
     config_summary(cfg)
 
     for latent in cfg.neural.latent_dim:
-        path = cfg.app.dataset.replace("/", "-")
-        path = f"experiments/{path}/latent_{latent}"
-        path = Path(path)
-
-        try:
-            embeddings_dataset = torch.load(
-                path / "embeddings.pth", map_location=device, weights_only=False
-            )
-        except FileNotFoundError:
-            click.echo(f"[ERROR] Embeddings file not found: {path / 'embeddings.pth'}")
-            click.echo("[INFO] Please run `get-embeddings` command first.")
-            sys.exit(1)
+        path = get_experiment_path(cfg, EXPERIMENTS_ROOT, latent)
+        embeddings_dataset = load_embeddings_dataset(path, device)
 
         train_classifier(
             config=cfg.neural,
@@ -940,22 +770,17 @@ def train(config):
     click.echo("[INFO] Classifier training completed.")
 
 
-@classifier.command()
+@classifier.command(name="test")
 @click.option("--config", help="YAML configuration.")
-def test(config):
+def test_classifier_command(config):
     "👨🏻‍🏫 Test the classifier on the test set."
-    cfg = OmegaConf.load(config)
+    cfg = load_cli_config(config)
     fail_if_text_modality(cfg, "classifier test")
     config_summary(cfg)
 
     for latent in cfg.neural.latent_dim:
-        path = cfg.app.dataset.replace("/", "-")
-        path = f"experiments/{path}/latent_{latent}"
-        path = Path(path)
-
-        embeddings_dataset = torch.load(
-            path / "embeddings.pth", map_location=device, weights_only=False
-        )
+        path = get_experiment_path(cfg, EXPERIMENTS_ROOT, latent)
+        embeddings_dataset = load_embeddings_dataset(path, device)
 
         classifier = Classifier(
             latent_dim=latent,
@@ -963,13 +788,7 @@ def test(config):
         )
 
         classifier_path = path / "classifier.pth"
-        if classifier_path.exists():
-            click.echo(f"[INFO] Loading classifier from: {classifier_path}")
-            classifier.load_state_dict(torch.load(classifier_path, map_location=device))
-            classifier.to(device)
-        else:
-            click.echo(f"[ERROR] Classifier path does not exist: {classifier_path}")
-            sys.exit(1)
+        load_model_state(classifier, classifier_path, "Classifier", device=device)
 
         predictions = []
 
@@ -1025,7 +844,7 @@ def test(config):
 @click.option("--config", help="YAML configuration.")
 def get_bestparams(config):
     "🔍 Search best memory sizes and filling percents."
-    cfg = OmegaConf.load(config)
+    cfg = load_cli_config(config)
     config_summary(cfg)
 
     if cfg.app.modality == "text":
@@ -1048,8 +867,6 @@ def get_bestparams(config):
         SpinnerColumn,
         TimeElapsedColumn,
         MofNCompleteColumn,
-        TimeRemainingColumn,
-        TaskProgressColumn,
     )
 
     progress = Progress(
@@ -1078,25 +895,13 @@ def get_bestparams(config):
     progress.start_task(latent_task)
 
     for latent in cfg.neural.latent_dim:
-        path = cfg.app.dataset.replace("/", "-")
-        path = f"experiments/{path}/latent_{latent}"
-        path = Path(path)
+        path = get_experiment_path(cfg, EXPERIMENTS_ROOT, latent)
 
         # Grid search over the memory size (m) and the filling percent.
 
         # Dataset ------------------------------------------------------------
 
-        try:
-            click.echo(
-                f"[INFO] Loading embeddings dataset from: {path / 'embeddings.pth'}"
-            )
-            embeddings_dataset = torch.load(
-                path / "embeddings.pth", map_location=device, weights_only=False
-            )
-        except FileNotFoundError:
-            click.echo(f"[ERROR] Embeddings file not found: {path / 'embeddings.pth'}")
-            click.echo("[INFO] Please run `get-embeddings` command first.")
-            sys.exit(1)
+        embeddings_dataset = load_embeddings_dataset(path, device=device)
 
         dataset = ImageDatasetWrapper(
             dataset_name=cfg.app.dataset,
@@ -1121,25 +926,13 @@ def get_bestparams(config):
         )
 
         classifier_path = path / "classifier.pth"
-        if classifier_path.exists():
-            click.echo(f"[INFO] Loading classifier from: {classifier_path}")
-            classifier.load_state_dict(torch.load(classifier_path, map_location=device))
-            classifier.to(device)
-        else:
-            click.echo(f"[ERROR] Classifier path does not exist: {classifier_path}")
-            sys.exit(1)
+        load_model_state(classifier, classifier_path, "Classifier", device=device)
 
         # Decoder -----------------------------------------------------------------
 
         decoder = Autoencoder(input_shape=input_shape, latent_dim=latent)
         decoder_path = path / "autoencoder.pth"
-        if decoder_path.exists():
-            click.echo(f"[INFO] Loading decoder from: {decoder_path}")
-            decoder.load_state_dict(torch.load(decoder_path, map_location=device))
-            decoder.to(device)
-        else:
-            click.echo(f"[ERROR] Decoder path does not exist: {decoder_path}")
-            sys.exit(1)
+        load_model_state(decoder, decoder_path, "Decoder", device=device)
 
         # Search --------------------------------------------------------------------
 
@@ -1166,15 +959,7 @@ def get_bestparams(config):
                     )
 
                     # Create a new memory instance with the current parameters
-                    eam = AssociativeMemory(
-                        n=latent,
-                        m=msize,
-                        xi=cfg.memory.xi,
-                        sigma=cfg.memory.sigma,
-                        iota=cfg.memory.iota,
-                        kappa=cfg.memory.kappa,
-                        device=device,
-                    )
+                    eam = create_associative_memory(cfg, latent, msize)
 
                     # Memorize the dataset
                     eam, _, _ = memorize(
@@ -1227,7 +1012,7 @@ def get_bestparams(config):
     progress.stop()
     # .................................................................
 
-    path = Path(f"experiments/{cfg.app.dataset}")
+    path = get_experiment_path(cfg, EXPERIMENTS_ROOT, latent)
     save_path = path / "memories_results.json"
     click.echo(f"[INFO] Saving results to: {save_path}")
     with open(save_path, "w") as f:
@@ -1262,30 +1047,18 @@ def get_bestparams(config):
 def create_memories(config, n):
     "🧠 Create memories."
 
-    from omegaconf import ListConfig
-
     from reamember.neuralnets.classifier import Classifier
 
-    cfg = OmegaConf.load(config)
+    cfg = load_cli_config(config)
     fail_if_text_modality(cfg, "create-memories")
     config_summary(cfg)
 
-    latent = (
-        int(cfg.neural.latent_dim[0])
-        if isinstance(cfg.neural.latent_dim, ListConfig)
-        else int(cfg.neural.latent_dim)
-    )
-    domain = (
-        int(cfg.memory.domain[0])
-        if isinstance(cfg.memory.domain, ListConfig)
-        else int(cfg.memory.domain)
-    )
+    latent = int(get_scalar_config_value(cfg.neural.latent_dim))
+    domain = int(get_scalar_config_value(cfg.memory.domain))
 
     print(f"[INFO] Creating memories with latent={latent}, domain={domain}")
 
-    path = cfg.app.dataset.replace("/", "-")
-    path = f"experiments/{path}/latent_{latent}"
-    path = Path(path)
+    path = get_experiment_path(cfg, EXPERIMENTS_ROOT, latent)
 
     # Dataset ------------------------------------------------------------
 
@@ -1302,15 +1075,7 @@ def create_memories(config, n):
 
     # Memory ---------------------------------------------------------------
 
-    eam = AssociativeMemory(
-        n=latent,
-        m=domain,
-        xi=cfg.memory.xi,
-        sigma=cfg.memory.sigma,
-        iota=cfg.memory.iota,
-        kappa=cfg.memory.kappa,
-        device=device,
-    )
+    eam = create_associative_memory(cfg, latent, domain)
 
     eam, min_value, max_value = memorize(eam, dataset=embeddings_dataset.train)
 
@@ -1333,32 +1098,17 @@ def create_memories(config, n):
     )
 
     classifier_path = path / "classifier.pth"
-    if classifier_path.exists():
-        click.echo(f"[INFO] Loading classifier from: {classifier_path}")
-        classifier.load_state_dict(torch.load(classifier_path, map_location=device))
-        classifier.to(device)
-    else:
-        click.echo(f"[ERROR] Classifier path does not exist: {classifier_path}")
-        sys.exit(1)
+    load_model_state(classifier, classifier_path, "Classifier", device=device)
 
     # Decoder -----------------------------------------------------------------
 
     decoder = Autoencoder(input_shape=input_shape, latent_dim=latent)
     decoder_path = path / "autoencoder.pth"
-    if decoder_path.exists():
-        click.echo(f"[INFO] Loading decoder from: {decoder_path}")
-        decoder.load_state_dict(torch.load(decoder_path, map_location=device))
-        decoder.to(device)
-    else:
-        click.echo(f"[ERROR] Decoder path does not exist: {decoder_path}")
-        sys.exit(1)
+    load_model_state(decoder, decoder_path, "Decoder", device=device)
 
     # Inference ---------------------------------------------------------------
 
-    reconstructedImgPath = Path(path / f"dim{domain}_memory_reconstructed")
-    if not reconstructedImgPath.exists():
-        click.echo(f"[INFO] Creating path: {reconstructedImgPath}")
-        reconstructedImgPath.mkdir(parents=True, exist_ok=True)
+    reconstructedImgPath = ensure_directory(path / f"dim{domain}_memory_reconstructed")
 
     click.echo("[INFO] Classifying memories...")
 
@@ -1434,18 +1184,15 @@ def dream(config, num_cycles, init_type, idx):
     🛌 Ejecuta el proceso de 'soñar' (dreaming) usando la memoria asociativa y el decoder.
     """
 
-    cfg = OmegaConf.load(config)
+    cfg = load_cli_config(config)
     fail_if_text_modality(cfg, "dream")
     config_summary(cfg)
 
-    path = Path(f"experiments/{cfg.app.dataset}/latent_{cfg.neural.latent_dim}")
+    latent = int(get_scalar_config_value(cfg.neural.latent_dim))
+    path = get_experiment_path(cfg, EXPERIMENTS_ROOT, latent)
 
     # Cargar embeddings
-    embeddings_path = path / "embeddings.pth"
-    if not embeddings_path.exists():
-        click.echo(f"[ERROR] Embeddings file not found: {embeddings_path}")
-        return
-    embeddings_dataset = torch.load(embeddings_path, map_location=device)
+    embeddings_dataset = load_embeddings_dataset(path, device)
     embeddings = (
         embeddings_dataset.test.data
         if hasattr(embeddings_dataset, "test")
@@ -1454,11 +1201,7 @@ def dream(config, num_cycles, init_type, idx):
 
     # Cargar memoria asociativa
     mem_params = cfg.memory if hasattr(cfg, "memory") else {}
-    n = (
-        cfg.neural.latent_dim[0]
-        if isinstance(cfg.neural.latent_dim, (list, tuple))
-        else cfg.neural.latent_dim
-    )
+    n = latent
     m = cfg.memory.m if hasattr(cfg.memory, "m") else 4
     memory = AssociativeMemory(n=n, m=m, device=device, **mem_params)
     # Llenar memoria con embeddings de entrenamiento
@@ -1478,11 +1221,7 @@ def dream(config, num_cycles, init_type, idx):
     )
     decoder = Autoencoder(input_shape=input_shape, latent_dim=n)
     decoder_path = path / "autoencoder.pth"
-    if not decoder_path.exists():
-        click.echo(f"[ERROR] Decoder file not found: {decoder_path}")
-        return
-    decoder.load_state_dict(torch.load(decoder_path, map_location=device))
-    decoder.to(device)
+    load_model_state(decoder, decoder_path, "Decoder", device=device)
     decoder.eval()
 
     # Selección del vector inicial
@@ -1499,8 +1238,7 @@ def dream(config, num_cycles, init_type, idx):
     else:
         raise ValueError("init_type debe ser 'real', 'random' o 'noisy'")
 
-    dreams_path = path / "dreams"
-    dreams_path.mkdir(parents=True, exist_ok=True)
+    dreams_path = ensure_directory(path / "dreams")
 
     for i in range(num_cycles):
         recalled, accepted, weight = memory.recall(vector)
@@ -1522,9 +1260,9 @@ def dream(config, num_cycles, init_type, idx):
 @click.option("--config", help="YAML configuration.")
 def plot(config):
     # Plots originales de WEAM
-    cfg = OmegaConf.load(config)
+    cfg = load_cli_config(config)
     # config_summary(cfg)
-    path = Path(f"experiments/{cfg.app.dataset}")
+    path = EXPERIMENTS_ROOT / cfg.app.dataset.replace("/", "-")
     load_path = path / "memories_results.json"
     print(f"[INFO] Loading results from: {load_path}")
 
@@ -1579,9 +1317,7 @@ def plot(config):
                 height=600,
             )
 
-            save_path = path / "plots"
-            if not save_path.exists():
-                save_path.mkdir(parents=True, exist_ok=True)
+            ensure_directory(path / "plots")
 
             fig1.write_image(path / f"plots/memory_results_latent{latent}.svg")
             fig2.write_image(path / f"plots/memory_scores_latent{latent}.svg")
@@ -1607,7 +1343,7 @@ def launch_tensorboard():
 def clean_logs():
     "Clean TensorBoard logs."
     click.echo("[INFO] Cleaning logs...")
-    log_path = Path("logs")
+    log_path = LOGS_PATH
     if log_path.exists():
         shutil.rmtree(log_path)
         click.echo(f"[INFO] Logs cleaned: {log_path}")

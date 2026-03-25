@@ -1,9 +1,114 @@
-import torch
-from tqdm import tqdm
 import os
-import pandas as pd
+from dataclasses import dataclass, field
+from enum import Enum
+from pathlib import Path
+from typing import Any
 
-def setConfig():
+import torch
+from omegaconf import DictConfig, MISSING, OmegaConf
+from tqdm import tqdm
+
+
+class Modality(str, Enum):
+    image = "image"
+    text = "text"
+
+
+@dataclass
+class AppConfig:
+    dataset: str = MISSING
+    modality: Modality = MISSING
+    column: str | None = None
+
+
+@dataclass
+class NeuralConfig:
+    latent_dim: list[int] = field(default_factory=list)
+    epochs: int | None = None
+    batch_size: int | None = None
+    learning_rate: float | None = None
+    patience: int | None = None
+    delta: float | None = None
+
+
+@dataclass
+class MemoryConfig:
+    folds: int = 5
+    noise_level: float | None = 0.0
+    domain: list[int] = field(default_factory=list)
+    filling: list[float] = field(default_factory=list)
+    iota: float = 0.0
+    kappa: float = 0.0
+    xi: float = 0.0
+    sigma: float = 0.1
+    m: int | None = None
+
+
+@dataclass
+class RuntimeConfig:
+    app: AppConfig = field(default_factory=AppConfig)
+    neural: NeuralConfig = field(default_factory=NeuralConfig)
+    memory: MemoryConfig = field(default_factory=MemoryConfig)
+
+
+def _normalize_special_values(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {
+            key: _normalize_special_values(item)
+            for key, item in value.items()
+        }
+    if isinstance(value, list):
+        return [_normalize_special_values(item) for item in value]
+    if isinstance(value, str) and value.strip().lower() == "none":
+        return None
+    return value
+
+
+def _require_non_empty_int_list(values: list[int], field_name: str) -> None:
+    if not values:
+        raise ValueError(f"{field_name} must contain at least one value")
+    if any(value <= 0 for value in values):
+        raise ValueError(f"{field_name} must contain only positive integers")
+
+
+def _validate_runtime_config(cfg: DictConfig) -> None:
+    dataset = cfg.app.dataset.strip()
+    if not dataset:
+        raise ValueError("app.dataset must not be empty")
+
+    if cfg.app.modality == Modality.text and not (cfg.app.column and cfg.app.column.strip()):
+        raise ValueError("app.column is required when app.modality is 'text'")
+
+    _require_non_empty_int_list(list(cfg.neural.latent_dim), "neural.latent_dim")
+    _require_non_empty_int_list(list(cfg.memory.domain), "memory.domain")
+
+    if not list(cfg.memory.filling):
+        raise ValueError("memory.filling must contain at least one value")
+    if any(value <= 0 or value > 1 for value in cfg.memory.filling):
+        raise ValueError("memory.filling values must be in the range (0, 1]")
+
+    if cfg.memory.folds <= 1:
+        raise ValueError("memory.folds must be greater than 1")
+    if cfg.memory.noise_level is not None and cfg.memory.noise_level < 0:
+        raise ValueError("memory.noise_level must be greater than or equal to 0")
+    if cfg.memory.sigma < 0:
+        raise ValueError("memory.sigma must be greater than or equal to 0")
+    if cfg.memory.m is not None and cfg.memory.m <= 0:
+        raise ValueError("memory.m must be a positive integer when provided")
+
+
+def loadValConfig(config_path: str | os.PathLike[str]) -> DictConfig:
+    schema = OmegaConf.structured(RuntimeConfig)
+    raw_cfg = OmegaConf.load(Path(config_path))
+    normalized_cfg = OmegaConf.create(
+        _normalize_special_values(OmegaConf.to_container(raw_cfg, resolve=False))
+    )
+    cfg = OmegaConf.merge(schema, normalized_cfg)
+    OmegaConf.to_container(cfg, resolve=True, throw_on_missing=True)
+    _validate_runtime_config(cfg)
+    return cfg
+
+def setDeviceConfig():
     """
     Configura el dispositivo para PyTorch y spaCy según la disponibilidad de hardware.
     Devuelve el dispositivo configurado.
