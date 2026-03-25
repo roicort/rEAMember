@@ -640,17 +640,15 @@ def test_encoder(config, n):
                         width=800,
                         height=500,
                     )
-                    confusion_fig_path = (
-                        reconstructedTextPath / f"recognition_confusion_domain_{domain}.html"
-                    )
-                    fig.write_html(confusion_fig_path)
+                    fig.write_html(reconstructedTextPath / f"recognition_confusion_domain_{domain}.html")
+                    fig.write_image(reconstructedTextPath / f"recognition_confusion_domain_{domain}.png")
 
                     click.echo(
                         f"[INFO] Recognition rates (m={domain}) | seen recognized: {confusion['rates']['seen_recognized_rate']:.4f} "
                         f"| unseen recognized: {confusion['rates']['unseen_recognized_rate']:.4f}"
                     )
                     click.echo(f"[INFO] Recognition confusion saved to: {confusion_path}")
-                    click.echo(f"[INFO] Recognition confusion plot saved to: {confusion_fig_path}")
+                    click.echo(f"[INFO] Recognition confusion plot saved to: {reconstructedTextPath / f'recognition_confusion_domain_{domain}.html'}")
                     domain_progress.update(domain_task, advance=1)
 
             confusion_summary_path = reconstructedTextPath / "recognition_confusion_summary.json"
@@ -829,9 +827,10 @@ def test_classifier_command(config):
             width=800,
             height=800,
         )
-        fig_path = path / "classifier_confmatrix.html"
-        click.echo(f"[INFO] Saving confusion matrix to: {fig_path}")
-        fig.write_html(fig_path)
+
+        fig.write_image(path / "classifier_confmatrix.png")
+        fig.write_html(path / "classifier_confmatrix.html")
+        click.echo(f"[INFO] Saving confusion matrix to: {path / 'classifier_confmatrix.png'} and {path / 'classifier_confmatrix.html'}")
 
     click.echo("[INFO] Classifier testing completed.")
 

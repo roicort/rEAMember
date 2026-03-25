@@ -161,6 +161,8 @@ def get_embeddings(
         pca_embeddings = pca.fit_transform(embeddings_np)
 
         # Load embeddings with labels for plotting
+        from reamember.dataset import EmbeddingDatasetWrapper
+        torch.serialization.add_safe_globals([EmbeddingDatasetWrapper])
         embedding_dataset = torch.load(save_path / "embeddings.pth", map_location="cpu")
 
         # Plot PCA embeddings using plotly
@@ -185,4 +187,5 @@ def get_embeddings(
             title="PCA Embeddings",
         )
         fig.update_layout(width=800, height=600)
+        fig.write_html(save_path / "embeddings_pca.html")
         fig.write_image(save_path / "embeddings_pca.png")
