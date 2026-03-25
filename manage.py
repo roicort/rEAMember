@@ -200,9 +200,11 @@ def text_reconstruction_metrics(model, device, original_texts, embeddings, batch
             "mean_edit_distance": 0.0,
         }
 
-    source_embeddings = torch.as_tensor(embeddings, dtype=torch.float32)
-    if device == "mps" and torch.backends.mps.is_available():
+    if getattr(device, "type", None) == "mps":
         device = torch.device("cpu")
+        source_embeddings = torch.as_tensor(embeddings, dtype=torch.float32).cpu()
+    else:
+        source_embeddings = torch.as_tensor(embeddings, dtype=torch.float32).to(device)
     reconstructed_texts = decode_text_embeddings(
         model=model,
         embeddings=source_embeddings,
@@ -408,7 +410,7 @@ def test(config, n):
             path = f"experiments/{path}/latent_{latent}"
             path = Path(path)
 
-            if device == "mps" and torch.backends.mps.is_available():
+            if getattr(device, "type", None) == "mps":
                 click.echo("[WARNING] MPS device not supported in Fairseq pipelines. Using CPU instead.")
                 transformer = SONAR(device=torch.device("cpu"))
             else:
@@ -524,12 +526,16 @@ def get_embeddings(config):
             column=cfg.app.column,
         )
 
-        model = SONAR(device=device)
-
         for latent in cfg.neural.latent_dim:
             path = cfg.app.dataset.replace("/", "-")
             path = f"experiments/{path}/latent_{latent}"
             path = Path(path)
+
+            if getattr(device, "type", None) == "mps":
+                click.echo("[WARNING] MPS device not supported in Fairseq pipelines. Using CPU instead.")
+                model = SONAR(device=torch.device("cpu"))
+            else:
+                model = SONAR(device=device)
 
             get_embeddings(
                 model,
