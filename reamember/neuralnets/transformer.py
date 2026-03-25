@@ -15,7 +15,9 @@ class SONAR(pl.LightningModule):
         decoder="text_sonar_basic_decoder",
         tokenizer="text_sonar_basic_encoder",
         max_seq_len=128,
-        device="cpu",
+        device="cuda" if torch.cuda.is_available() else "cpu",
+        encode_device=None,
+        decode_device=None,
     ):
         super().__init__()
         self.input_shape = input_shape
@@ -25,17 +27,19 @@ class SONAR(pl.LightningModule):
         self.decoder_name = decoder
         self.tokenizer_name = tokenizer
         self.max_seq_len = max_seq_len
-        self.pipeline_device = torch.device(device)
+        base_device = torch.device(device)
+        self.encode_device = torch.device(encode_device or base_device)
+        self.decode_device = torch.device(decode_device or base_device)
 
         self.encode_model = TextToEmbeddingModelPipeline(
             encoder=self.encoder_name,
             tokenizer=self.tokenizer_name,
-            device=self.pipeline_device,
+            device=self.encode_device,
         )
         self.decode_model = EmbeddingToTextModelPipeline(
             decoder=self.decoder_name,
             tokenizer=self.tokenizer_name,
-            device=self.pipeline_device,
+            device=self.decode_device,
         )
 
     def encode(self, x, **kwargs):
@@ -47,6 +51,8 @@ class SONAR(pl.LightningModule):
         return x
 
     def decode(self, z, **kwargs):
+        if isinstance(z, torch.Tensor):
+            z = z.to(self.decode_device)
         z = self.decode_model.predict(
             z,
             target_lang="eng_Latn",
@@ -70,7 +76,9 @@ class SONAR(pl.LightningModule):
             "latent_dim": self.latent_dim,
             "input_shape": self.input_shape,
             "max_seq_len": self.max_seq_len,
-            "device": str(self.pipeline_device),
+            "device": str(self.encode_device),
+            "encode_device": str(self.encode_device),
+            "decode_device": str(self.decode_device),
         }
 
         torch.save(metadata, path)
@@ -86,13 +94,13 @@ class SONAR(pl.LightningModule):
         return {}
 
     @classmethod
-    def load(cls, path, device="cpu"):
+    def load(self, cls, path):
         path = Path(path)
 
         if not path.exists():
             raise FileNotFoundError(f"Modelo no encontrado en: {path}")
 
-        metadata = torch.load(path, map_location=device)
+        metadata = torch.load(path, map_location=self.encode_device)
         return cls(
             input_shape=metadata.get("input_shape", None),
             latent_dim=metadata.get("latent_dim", 1024),
@@ -101,5 +109,7 @@ class SONAR(pl.LightningModule):
             decoder=metadata.get("decoder", "text_sonar_basic_decoder"),
             tokenizer=metadata.get("tokenizer", "text_sonar_basic_encoder"),
             max_seq_len=metadata.get("max_seq_len", 128),
-            device=device,
+            device=self.encode_device,
+            encode_device=metadata.get("encode_device", self.encode_device),
+            decode_device=metadata.get("decode_device", self.decode_device),
         )
