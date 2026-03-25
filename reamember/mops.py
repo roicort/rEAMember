@@ -164,3 +164,93 @@ def evalm(eam, classifier, dataset):
         recall,
         precision,
     )
+
+
+def evalm_text(eam, dataset):
+    """
+    Evaluate the memory on a text-embedding dataset.
+    """
+
+    features = dataset.data
+    min_value = features.min()
+    max_value = features.max()
+    features_rounded = torch.round(
+        (features - min_value) / (max_value - min_value) * (eam.m - 1)
+    ).to(torch.int16)
+
+    print(
+        f"[INFO] Evaluating {len(features_rounded)} text features with shape {features_rounded.shape}..."
+    )
+
+    memories_features = []
+    recognitions = []
+    weights = []
+
+    for feature in tqdm(features_rounded):
+        memory, recognized, weight = eam.recall(feature)
+        memory = memory.cpu().numpy() if torch.is_tensor(memory) else memory
+        recognized = bool(recognized.cpu().item()) if torch.is_tensor(recognized) else bool(recognized)
+        weight = weight.cpu().numpy() if torch.is_tensor(weight) else weight
+
+        memories_features.append(memory)
+        recognitions.append(recognized)
+        weights.append(weight)
+
+    memories_features = np.array(memories_features, dtype=float)
+    memories_features = rsize_recall(memories_features, eam.m, min_value, max_value)
+    recognitions = np.array(recognitions, dtype=bool)
+    weights = np.array(weights, dtype=float)
+
+    recognized_count = np.sum(recognitions)
+    total = len(recognitions)
+    recognized_percentage = recognized_count / total if total > 0 else 0.0
+    unrecognized_percentage = 1.0 - recognized_percentage if total > 0 else 0.0
+
+    return memories_features, recognitions, weights, recognized_percentage, unrecognized_percentage
+
+
+def evalm_text_confusion(eam, seen_dataset, unseen_dataset):
+    """
+    Build a binary confusion matrix for text memory recognition.
+    Rows: seen, unseen.
+    Columns: recognized, unrecognized.
+    """
+
+    _, seen_recognitions, _, seen_recognized, seen_unrecognized = evalm_text(
+        eam, seen_dataset
+    )
+    _, unseen_recognitions, _, unseen_recognized, unseen_unrecognized = evalm_text(
+        eam, unseen_dataset
+    )
+
+    seen_total = len(seen_recognitions)
+    unseen_total = len(unseen_recognitions)
+
+    matrix = np.array(
+        [
+            [int(np.sum(seen_recognitions)), int(seen_total - np.sum(seen_recognitions))],
+            [
+                int(np.sum(unseen_recognitions)),
+                int(unseen_total - np.sum(unseen_recognitions)),
+            ],
+        ],
+        dtype=int,
+    )
+
+    return {
+        "labels": {
+            "rows": ["seen", "unseen"],
+            "columns": ["recognized", "unrecognized"],
+        },
+        "matrix": matrix,
+        "counts": {
+            "seen_total": int(seen_total),
+            "unseen_total": int(unseen_total),
+        },
+        "rates": {
+            "seen_recognized_rate": float(seen_recognized),
+            "seen_unrecognized_rate": float(seen_unrecognized),
+            "unseen_recognized_rate": float(unseen_recognized),
+            "unseen_unrecognized_rate": float(unseen_unrecognized),
+        },
+    }

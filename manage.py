@@ -41,7 +41,7 @@ from reamember.dataset import ImageDatasetWrapper, TextDatasetWrapper
 # EAM
 # Can be changed to TorchAssociativeMemory or NumpyAssociativeMemory
 from reamember.eam.associative import NumpyAssociativeMemory as AssociativeMemory
-from reamember.mops import evalm, memorize, remember
+from reamember.mops import evalm, evalm_text, evalm_text_confusion, memorize, remember
 from reamember.neuralnets.autoencoder import Autoencoder
 from reamember.neuralnets.classifier import Classifier
 from reamember.neuralnets.transformer import SONAR
@@ -188,7 +188,9 @@ def decode_text_embeddings(model, embeddings, device=None, batch_size=32):
     return reconstructed_texts
 
 
-def text_reconstruction_metrics(model, device, original_texts, embeddings, batch_size=32):
+def text_reconstruction_metrics(
+    model, device, original_texts, embeddings, batch_size=32
+):
     """
     Compute reconstruction metrics directly in embedding space and text space.
     """
@@ -227,7 +229,9 @@ def text_reconstruction_metrics(model, device, original_texts, embeddings, batch
     source_norm = torch.linalg.norm(source_embeddings, dim=1)
     reconstructed_norm = torch.linalg.norm(reconstructed_embeddings, dim=1)
     denom = torch.clamp(source_norm * reconstructed_norm, min=1e-12)
-    cosine_scores = torch.sum(source_embeddings * reconstructed_embeddings, dim=1) / denom
+    cosine_scores = (
+        torch.sum(source_embeddings * reconstructed_embeddings, dim=1) / denom
+    )
     l2_scores = torch.linalg.norm(source_embeddings - reconstructed_embeddings, dim=1)
 
     samples = []
@@ -257,6 +261,221 @@ def text_reconstruction_metrics(model, device, original_texts, embeddings, batch
     }
 
     return samples, summary
+
+
+def get_besttext_params(cfg, config):
+    from sklearn.model_selection import KFold
+    from reamember.dataset import EmbeddingDatasetWrapper
+
+    global_results = []
+
+    msizes = cfg.memory.domain
+    filling_percents = [0.5]
+    folds = cfg.memory.folds
+    noise_level = cfg.memory.noise_level
+
+    from rich.progress import (
+        Progress,
+        SpinnerColumn,
+        TimeElapsedColumn,
+        MofNCompleteColumn,
+    )
+
+    progress = Progress(
+        SpinnerColumn(),
+        *Progress.get_default_columns(),
+        TimeElapsedColumn(),
+        MofNCompleteColumn(),
+        speed_estimate_period=5.0,
+    )
+
+    latent_task = progress.add_task(
+        f"[magenta]Latent: {cfg.neural.latent_dim[0]}",
+        total=len(cfg.neural.latent_dim),
+        start=True,
+    )
+    msize_task = progress.add_task(
+        f"[green]Memory Size: {msizes[0]}",
+        total=len(msizes),
+    )
+    filling_task = progress.add_task(
+        f"[blue]Filling Percent: {filling_percents[0]}",
+        total=len(filling_percents),
+    )
+    fold_task = progress.add_task("[cyan]Folds", total=folds)
+
+    progress.start()
+    progress.start_task(latent_task)
+
+    for latent in cfg.neural.latent_dim:
+        path = cfg.app.dataset.replace("/", "-")
+        path = f"experiments/{path}/latent_{latent}"
+        path = Path(path)
+
+        try:
+            click.echo(
+                f"[INFO] Loading embeddings dataset from: {path / 'embeddings.pth'}"
+            )
+            embeddings_dataset = torch.load(
+                path / "embeddings.pth", map_location=device, weights_only=False
+            )
+        except FileNotFoundError:
+            click.echo(f"[ERROR] Embeddings file not found: {path / 'embeddings.pth'}")
+            click.echo("[INFO] Please run `get-embeddings` command first.")
+            sys.exit(1)
+
+        dataset = TextDatasetWrapper(
+            dataset_name=cfg.app.dataset,
+            column=cfg.app.column,
+        )
+
+        if getattr(device, "type", None) == "mps":
+            click.echo(
+                "[WARNING] MPS device not supported in Fairseq pipelines. Using CPU instead."
+            )
+            transformer = SONAR(device=torch.device("cpu"))
+        else:
+            transformer = SONAR(device=device)
+
+        X = embeddings_dataset.train.data
+        if isinstance(X, torch.Tensor):
+            X = X.cpu().numpy()
+        texts = np.array([str(text) for text in dataset.train.texts], dtype=object)
+
+        kf = KFold(n_splits=folds, shuffle=True, random_state=42)
+
+        results = []
+
+        progress.start_task(msize_task)
+        progress.start_task(filling_task)
+        progress.start_task(fold_task)
+
+        for msize in msizes:
+            for filling_percent in filling_percents:
+                fold_metrics = []
+                progress.reset(fold_task)
+
+                for train_idx, val_idx in kf.split(X):
+                    X_train, X_val = X[train_idx], X[val_idx]
+                    texts_val = texts[val_idx].tolist()
+                    split_index = max(1, len(X_train) // 2)
+
+                    fold_train_wrapper = EmbeddingDatasetWrapper(
+                        train=torch.tensor(X_train[:split_index], dtype=torch.float32),
+                        test=torch.tensor(X_val, dtype=torch.float32),
+                        noise_level=noise_level,
+                    )
+
+                    eam = AssociativeMemory(
+                        n=latent,
+                        m=msize,
+                        xi=cfg.memory.xi,
+                        sigma=cfg.memory.sigma,
+                        iota=cfg.memory.iota,
+                        kappa=cfg.memory.kappa,
+                        device=device,
+                    )
+
+                    eam, _, _ = memorize(
+                        eam,
+                        dataset=fold_train_wrapper.train,
+                        filling_percent=1.0,
+                    )
+
+                    (
+                        memories_features,
+                        recognitions,
+                        _weights,
+                        recognized,
+                        unrecognized,
+                    ) = evalm_text(eam, dataset=fold_train_wrapper.test)
+
+                    recognized_embeddings = memories_features[recognitions]
+                    recognized_texts = [
+                        text
+                        for text, is_recognized in zip(texts_val, recognitions)
+                        if is_recognized
+                    ]
+
+                    _, summary = text_reconstruction_metrics(
+                        model=transformer,
+                        device=device,
+                        original_texts=recognized_texts,
+                        embeddings=recognized_embeddings,
+                    )
+
+                    fold_metrics.append(
+                        {
+                            "recognized": recognized,
+                            "unrecognized": unrecognized,
+                            "mean_cosine": summary["mean_cosine"],
+                            "mean_l2": summary["mean_l2"],
+                            "mean_edit_distance": summary["mean_edit_distance"],
+                        }
+                    )
+                    progress.update(fold_task, advance=1)
+
+                avg_metrics = {
+                    key: np.mean([fold_metric[key] for fold_metric in fold_metrics])
+                    for key in fold_metrics[0]
+                }
+                results.append(
+                    {
+                        "latent": latent,
+                        "msize": msize,
+                        "filling_percent": filling_percent,
+                        **avg_metrics,
+                    }
+                )
+                progress.update(
+                    filling_task,
+                    advance=1,
+                    description=f"[blue]Filling Percent: {filling_percent}",
+                )
+
+            progress.reset(filling_task)
+            progress.update(
+                msize_task,
+                advance=1,
+                description=f"[green]Memory Size: {msize}",
+            )
+
+        progress.reset(msize_task)
+        global_results.extend(results)
+        progress.update(
+            latent_task, advance=1, description=f"[magenta]Latent: {latent}"
+        )
+
+    progress.stop()
+
+    path = Path(f"experiments/{cfg.app.dataset}")
+    save_path = path / "memories_results.json"
+    click.echo(f"[INFO] Saving results to: {save_path}")
+    with open(save_path, "w") as f:
+        json.dump(global_results, f, indent=4)
+
+    df = pd.DataFrame(global_results)
+    df = df.sort_values(
+        by=["recognized", "mean_cosine", "mean_edit_distance", "mean_l2"],
+        ascending=[False, False, True, True],
+    )
+
+    best_params = df.iloc[0].to_dict()
+    cfg.neural.latent_dim = [int(best_params["latent"])]
+    cfg.memory.domain = [int(best_params["msize"])]
+    cfg.memory.filling = [float(best_params["filling_percent"])]
+
+    config_path = Path(config)
+    best_config_path = config_path.with_name(
+        re.sub(r"\.yml$", ".best.yml", config_path.name)
+    )
+    click.echo(
+        f"[INFO] Saving updated config with best parameters to: {best_config_path}"
+    )
+    with open(best_config_path, "w") as f:
+        OmegaConf.save(cfg, f)
+
+    click.echo("[INFO] Best text parameters search completed.")
 
 
 # --------------------------------------------------------------
@@ -298,7 +517,6 @@ def train(config):
             )
 
     elif cfg.app.modality == "text":
-
         dataset = TextDatasetWrapper(
             dataset_name=cfg.app.dataset,
             column=cfg.app.column,
@@ -323,7 +541,9 @@ def train(config):
                 click.echo(f"[INFO] Creating path: {path}")
                 path.mkdir(parents=True, exist_ok=True)
 
-            raise NotImplementedError("Fine tuning SONAR is not implemented yet. Please use the pretrained model.")
+            raise NotImplementedError(
+                "Fine tuning SONAR is not implemented yet. Please use the pretrained model."
+            )
 
 
 @encoder.command()
@@ -381,7 +601,11 @@ def test(config, n):
                 click.echo(f"[INFO] Creating path: {reconstructedImgPath}")
                 reconstructedImgPath.mkdir(parents=True, exist_ok=True)
 
-            for i in tqdm(range(len(embeddings_dataset.test.data)) if n == 0 else range(min(n, len(embeddings_dataset.test.data)))):
+            for i in tqdm(
+                range(len(embeddings_dataset.test.data))
+                if n == 0
+                else range(min(n, len(embeddings_dataset.test.data)))
+            ):
                 f = torch.as_tensor(
                     embeddings_dataset.test.data[i], dtype=torch.float32, device=device
                 ).unsqueeze(0)
@@ -396,7 +620,8 @@ def test(config, n):
             click.echo(f"[INFO] Reconstructed images saved to: {reconstructedImgPath}")
 
     elif cfg.app.modality == "text":
-        from reamember.dataset import TextDatasetWrapper
+        from reamember.dataset import EmbeddingDatasetWrapper, TextDatasetWrapper
+        from omegaconf import ListConfig
 
         click.echo(f"[INFO] Loading dataset: {cfg.app.dataset}")
 
@@ -411,7 +636,9 @@ def test(config, n):
             path = Path(path)
 
             if getattr(device, "type", None) == "mps":
-                click.echo("[WARNING] MPS device not supported in Fairseq pipelines. Using CPU instead.")
+                click.echo(
+                    "[WARNING] MPS device not supported in Fairseq pipelines. Using CPU instead."
+                )
                 transformer = SONAR(device=torch.device("cpu"))
             else:
                 transformer = SONAR(device=device)
@@ -465,6 +692,127 @@ def test(config, n):
                     ensure_ascii=False,
                 )
 
+            domains = (
+                [int(domain) for domain in cfg.memory.domain]
+                if isinstance(cfg.memory.domain, ListConfig)
+                else [int(cfg.memory.domain)]
+            )
+            filling_percent = 0.5
+            train_embeddings = embeddings_dataset.train.data
+            split_index = max(1, len(train_embeddings) // 2)
+            memory_wrapper = EmbeddingDatasetWrapper(
+                train=train_embeddings[:split_index],
+                test=train_embeddings[split_index:],
+            )
+            confusion_summaries = []
+
+            from rich.progress import (
+                MofNCompleteColumn,
+                Progress,
+                SpinnerColumn,
+                TimeElapsedColumn,
+            )
+
+            domain_progress = Progress(
+                SpinnerColumn(),
+                *Progress.get_default_columns(),
+                TimeElapsedColumn(),
+                MofNCompleteColumn(),
+            )
+            domain_task = domain_progress.add_task(
+                "[cyan]Domains",
+                total=len(domains),
+            )
+
+            with domain_progress:
+                for domain in domains:
+                    eam = AssociativeMemory(
+                        n=latent,
+                        m=domain,
+                        xi=cfg.memory.xi,
+                        sigma=cfg.memory.sigma,
+                        iota=cfg.memory.iota,
+                        kappa=cfg.memory.kappa,
+                        device=device,
+                    )
+
+                    eam, _, _ = memorize(
+                        eam,
+                        dataset=memory_wrapper.train,
+                        filling_percent=1.0,
+                    )
+
+                    confusion = evalm_text_confusion(
+                        eam,
+                        seen_dataset=memory_wrapper.train,
+                        unseen_dataset=memory_wrapper.test,
+                    )
+
+                    confusion_payload = {
+                        "dataset": cfg.app.dataset,
+                        "latent_dim": int(latent),
+                        "memory_domain": domain,
+                        "filling_percent": filling_percent,
+                        "seen_source": "first_half_of_train",
+                        "unseen_source": "second_half_of_train",
+                        "labels": confusion["labels"],
+                        "matrix": confusion["matrix"].tolist(),
+                        "counts": confusion["counts"],
+                        "rates": confusion["rates"],
+                    }
+                    confusion_summaries.append(confusion_payload)
+
+                    confusion_path = (
+                        reconstructedTextPath / f"recognition_confusion_domain_{domain}.json"
+                    )
+                    with open(confusion_path, "w", encoding="utf-8") as f_out:
+                        json.dump(
+                            confusion_payload,
+                            f_out,
+                            indent=4,
+                            ensure_ascii=False,
+                        )
+
+                    fig = go.Figure(
+                        data=go.Heatmap(
+                            z=confusion["matrix"],
+                            x=confusion["labels"]["columns"],
+                            y=confusion["labels"]["rows"],
+                            colorscale="Viridis",
+                            colorbar=dict(title="Count"),
+                            text=confusion["matrix"],
+                            texttemplate="%{text}",
+                        )
+                    )
+                    fig.update_layout(
+                        title=f"Text Memory Recognition Confusion Matrix (m={domain})",
+                        xaxis_title="Memory Decision",
+                        yaxis_title="Sample Type",
+                        width=800,
+                        height=500,
+                    )
+                    confusion_fig_path = (
+                        reconstructedTextPath / f"recognition_confusion_domain_{domain}.html"
+                    )
+                    fig.write_html(confusion_fig_path)
+
+                    click.echo(
+                        f"[INFO] Recognition rates (m={domain}) | seen recognized: {confusion['rates']['seen_recognized_rate']:.4f} "
+                        f"| unseen recognized: {confusion['rates']['unseen_recognized_rate']:.4f}"
+                    )
+                    click.echo(f"[INFO] Recognition confusion saved to: {confusion_path}")
+                    click.echo(f"[INFO] Recognition confusion plot saved to: {confusion_fig_path}")
+                    domain_progress.update(domain_task, advance=1)
+
+            confusion_summary_path = reconstructedTextPath / "recognition_confusion_summary.json"
+            with open(confusion_summary_path, "w", encoding="utf-8") as f_out:
+                json.dump(
+                    confusion_summaries,
+                    f_out,
+                    indent=4,
+                    ensure_ascii=False,
+                )
+
             click.echo(
                 f"[INFO] Reconstruction metrics | cosine: {summary['mean_cosine']:.4f} "
                 f"| l2: {summary['mean_l2']:.4f} "
@@ -473,6 +821,7 @@ def test(config, n):
 
             click.echo(f"[INFO] Reconstructed texts saved to: {reconstructedTextPath}")
             click.echo(f"[INFO] Reconstruction metrics saved to: {metrics_path}")
+            click.echo(f"[INFO] Recognition confusion summary saved to: {confusion_summary_path}")
 
     # Done
     click.echo("[INFO] Encoder testing completed.")
@@ -532,7 +881,9 @@ def get_embeddings(config):
             path = Path(path)
 
             if getattr(device, "type", None) == "mps":
-                click.echo("[WARNING] MPS device not supported in Fairseq pipelines. Using CPU instead.")
+                click.echo(
+                    "[WARNING] MPS device not supported in Fairseq pipelines. Using CPU instead."
+                )
                 model = SONAR(device=torch.device("cpu"))
             else:
                 model = SONAR(device=device)
@@ -675,13 +1026,15 @@ def test(config):
 def get_bestparams(config):
     "🔍 Search best memory sizes and filling percents."
     cfg = OmegaConf.load(config)
-    fail_if_text_modality(cfg, "get-bestparams")
     config_summary(cfg)
+
+    if cfg.app.modality == "text":
+        get_besttext_params(cfg, config)
+        return
 
     from reamember.neuralnets.classifier import Classifier
     from sklearn.model_selection import StratifiedKFold
     from reamember.dataset import EmbeddingDatasetWrapper
-
 
     global_results = []
 
@@ -690,7 +1043,14 @@ def get_bestparams(config):
     folds = cfg.memory.folds
     noise_level = cfg.memory.noise_level
 
-    from rich.progress import Progress, SpinnerColumn, TimeElapsedColumn, MofNCompleteColumn, TimeRemainingColumn, TaskProgressColumn
+    from rich.progress import (
+        Progress,
+        SpinnerColumn,
+        TimeElapsedColumn,
+        MofNCompleteColumn,
+        TimeRemainingColumn,
+        TaskProgressColumn,
+    )
 
     progress = Progress(
         SpinnerColumn(),
@@ -700,15 +1060,23 @@ def get_bestparams(config):
         speed_estimate_period=5.0,
     )
 
-    latent_task = progress.add_task(f"[magenta]Latent: {cfg.neural.latent_dim[0]}", total=len(cfg.neural.latent_dim), start=True)
-    msize_task = progress.add_task(f"[green]Memory Size: {msizes[0]}", total=len(msizes))
-    filling_task = progress.add_task(f"[blue]Filling Percent: {filling_percents[0]}", total=len(filling_percents))
+    latent_task = progress.add_task(
+        f"[magenta]Latent: {cfg.neural.latent_dim[0]}",
+        total=len(cfg.neural.latent_dim),
+        start=True,
+    )
+    msize_task = progress.add_task(
+        f"[green]Memory Size: {msizes[0]}", total=len(msizes)
+    )
+    filling_task = progress.add_task(
+        f"[blue]Filling Percent: {filling_percents[0]}", total=len(filling_percents)
+    )
     fold_task = progress.add_task("[cyan]Folds", total=folds)
 
     progress.start()
 
     progress.start_task(latent_task)
-    
+
     for latent in cfg.neural.latent_dim:
         path = cfg.app.dataset.replace("/", "-")
         path = f"experiments/{path}/latent_{latent}"
@@ -783,11 +1151,9 @@ def get_bestparams(config):
 
         for msize in msizes:
             for filling_percent in filling_percents:
-
                 fold_metrics = []
                 progress.reset(fold_task)
                 for train_idx, val_idx in skf.split(X, y):
-
                     X_train, y_train = X[train_idx], y[train_idx]
                     X_val, y_val = X[val_idx], y[val_idx]
 
@@ -821,28 +1187,42 @@ def get_bestparams(config):
                         eam, classifier=classifier, dataset=fold_train_wrapper.test
                     )
 
-                    fold_metrics.append({
-                        "precision": precision,
-                        "recall": recall,
-                        "recognized": percentages[0],
-                        "unrecognized": percentages[1],
-                        "correct": percentages[2],
-                        "incorrect": percentages[3],
-                    })
+                    fold_metrics.append(
+                        {
+                            "precision": precision,
+                            "recall": recall,
+                            "recognized": percentages[0],
+                            "unrecognized": percentages[1],
+                            "correct": percentages[2],
+                            "incorrect": percentages[3],
+                        }
+                    )
                     progress.update(fold_task, advance=1)
-                avg_metrics = {k: np.mean([fm[k] for fm in fold_metrics]) for k in fold_metrics[0]}
-                results.append({
-                    "latent": latent,
-                    "msize": msize,
-                    "filling_percent": filling_percent,
-                    **avg_metrics
-                })
-                progress.update(filling_task, advance=1, description=f"[blue]Filling Percent: {filling_percent}")
+                avg_metrics = {
+                    k: np.mean([fm[k] for fm in fold_metrics]) for k in fold_metrics[0]
+                }
+                results.append(
+                    {
+                        "latent": latent,
+                        "msize": msize,
+                        "filling_percent": filling_percent,
+                        **avg_metrics,
+                    }
+                )
+                progress.update(
+                    filling_task,
+                    advance=1,
+                    description=f"[blue]Filling Percent: {filling_percent}",
+                )
             progress.reset(filling_task)
-            progress.update(msize_task, advance=1, description=f"[green]Memory Size: {msize}")
+            progress.update(
+                msize_task, advance=1, description=f"[green]Memory Size: {msize}"
+            )
         progress.reset(msize_task)
         global_results.extend(results)
-        progress.update(latent_task, advance=1, description=f"[magenta]Latent: {latent}")
+        progress.update(
+            latent_task, advance=1, description=f"[magenta]Latent: {latent}"
+        )
 
     progress.stop()
     # .................................................................
@@ -864,8 +1244,12 @@ def get_bestparams(config):
 
     # Save updated config
     config_path = Path(config)
-    best_config_path = config_path.with_name(re.sub(r"\.yml$", ".best.yml", config_path.name))
-    click.echo(f"[INFO] Saving updated config with best parameters to: {best_config_path}")
+    best_config_path = config_path.with_name(
+        re.sub(r"\.yml$", ".best.yml", config_path.name)
+    )
+    click.echo(
+        f"[INFO] Saving updated config with best parameters to: {best_config_path}"
+    )
     with open(best_config_path, "w") as f:
         OmegaConf.save(cfg, f)
 
@@ -874,9 +1258,7 @@ def get_bestparams(config):
 
 @cli.command()
 @click.option("--config", help="YAML configuration.")
-@click.option(
-    "--n", default=0, help="Number of samples to recall. If 0, recall all."
-)
+@click.option("--n", default=0, help="Number of samples to recall. If 0, recall all.")
 def create_memories(config, n):
     "🧠 Create memories."
 
@@ -989,7 +1371,11 @@ def create_memories(config, n):
         with torch.no_grad():
             memories_recognition.append(classifier.predict(f).cpu().numpy())
 
-    for i in tqdm(range(len(memories_features)) if n == 0 else range(min(n, len(memories_features)))):
+    for i in tqdm(
+        range(len(memories_features))
+        if n == 0
+        else range(min(n, len(memories_features)))
+    ):
         f = torch.as_tensor(
             memories_features[i], dtype=torch.float32, device=device
         ).unsqueeze(0)
@@ -1131,12 +1517,13 @@ def dream(config, num_cycles, init_type, idx):
 # --------------------------------------------------------------
 # Utils Commands
 
+
 @cli.command()
 @click.option("--config", help="YAML configuration.")
 def plot(config):
     # Plots originales de WEAM
     cfg = OmegaConf.load(config)
-    #config_summary(cfg)
+    # config_summary(cfg)
     path = Path(f"experiments/{cfg.app.dataset}")
     load_path = path / "memories_results.json"
     print(f"[INFO] Loading results from: {load_path}")
@@ -1152,20 +1539,22 @@ def plot(config):
         # For every latent dimension, plot the results using plotly
         for latent in newdf["latent"].unique():
             subset = newdf[newdf["latent"] == latent]
-            #print(subset)
+            # print(subset)
             # Bar plot of msize vs unrecognized, correct & incorrect
             fig1 = px.bar(
                 subset,
-                x=subset["msize"].astype(str),  # Asegura que solo aparecen los presentes
+                x=subset["msize"].astype(
+                    str
+                ),  # Asegura que solo aparecen los presentes
                 y=["unrecognized", "correct", "incorrect"],
                 color_discrete_map={
                     "unrecognized": "blue",
                     "correct": "green",
                     "incorrect": "red",
                 },
-                title=f"Filling Percent: {filling_percent}, Latent: {latent}"
+                title=f"Filling Percent: {filling_percent}, Latent: {latent}",
             )
-            fig1.update_xaxes(type='category')
+            fig1.update_xaxes(type="category")
 
             # Plot precision and recall vs msize
             fig2 = px.scatter(
@@ -1176,11 +1565,11 @@ def plot(config):
                     "precision": "orange",
                     "recall": "purple",
                 },
-                title=f"Precision and Recall vs Memory Size (Latent: {latent}, Filling: {filling_percent})"
+                title=f"Precision and Recall vs Memory Size (Latent: {latent}, Filling: {filling_percent})",
             )
             for trace in fig2.data:
                 trace.mode = "lines+markers"
-            fig2.update_xaxes(type='category')
+            fig2.update_xaxes(type="category")
             fig2.update_yaxes(range=[0, 1])
             fig2.update_layout(
                 xaxis_title="Memory Size (m)",
@@ -1196,6 +1585,7 @@ def plot(config):
 
             fig1.write_image(path / f"plots/memory_results_latent{latent}.svg")
             fig2.write_image(path / f"plots/memory_scores_latent{latent}.svg")
+
 
 @cli.command()
 def launch_tensorboard():

@@ -7,9 +7,9 @@ neural:
   latent_dim: [1024]
 
 memory:
-  folds: 1
+  folds: 2
   noise_level: None
-  domain: [4, 8, 16, 32, 64, 128, 256, 512, 1024]
+  domain: [1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024]
   filling: [0.8, 1.0]
   iota: 0.0
   kappa: 0.0
