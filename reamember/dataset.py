@@ -109,7 +109,7 @@ class CustomTextDataset(Dataset):
         self,
         texts,
         targets,
-        transform=transforms.ToTensor(),
+        transform=None,
         target_transform=torch.as_tensor,
     ):
         self.texts = texts
@@ -121,12 +121,11 @@ class CustomTextDataset(Dataset):
         return len(self.texts)
 
     def __getitem__(self, idx):
-        text, target = self.texts[idx], self.targets[idx]
+        text = self.texts[idx]
+        
         if self.transform:
             text = self.transform(text)
-        if self.target_transform:
-            target = self.target_transform(target)
-        return text, target
+        return text
 
 
 class ImageDatasetWrapper:
@@ -227,6 +226,20 @@ def _identity(x):
     return x
 
 
+def _clean_text(text):
+    return "" if text is None else str(text).strip()
+
+
+def _clean_definition(definition):
+    definition = _clean_text(definition)
+    if "." not in definition:
+        return definition
+    parts = [part.strip() for part in definition.split(".") if part.strip()]
+    if not parts:
+        return definition
+    return max(parts, key=len)
+
+
 class TextDatasetWrapper:
     def __init__(
         self,
@@ -239,10 +252,10 @@ class TextDatasetWrapper:
         **kwargs,
     ):
         if transform is None:
-            transform = _identity
+            transform = _clean_definition if column == "definition" else _clean_text
 
         ds = load_dataset_hf(
-            dataset_name, cache_dir=f"{data_path}/{dataset_name}"
+            dataset_name, cache_dir=f"{data_path}/{dataset_name.replace('/', '_')}"
         )
 
         # Detect if no test split and create one from train (default 10% test)
@@ -294,6 +307,9 @@ class EmbeddingDatasetWrapper:
             labels_test = torch.from_numpy(labels_test)
         self.train = EmbeddingDataset(train, labels_train, noise_level=noise_level)
         self.test = EmbeddingDataset(test, labels_test, noise_level=noise_level)
-        self.n_classes = len(
-            torch.unique(torch.cat([labels_train, labels_test], dim=0))
-        )
+        if labels_train is not None and labels_test is not None:
+            self.n_classes = len(
+                torch.unique(torch.cat([labels_train, labels_test], dim=0))
+            )
+        else:
+            self.n_classes = None

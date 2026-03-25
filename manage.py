@@ -20,6 +20,7 @@ import plotly.express as px
 import rich_click as click
 import torch
 import torchvision
+from nltk.metrics import edit_distance
 from omegaconf import OmegaConf
 from plotly import graph_objects as go
 from rich import box
@@ -43,7 +44,7 @@ from reamember.eam.associative import NumpyAssociativeMemory as AssociativeMemor
 from reamember.mops import evalm, memorize, remember
 from reamember.neuralnets.autoencoder import Autoencoder
 from reamember.neuralnets.classifier import Classifier
-from reamember.neuralnets.transformer import Transformer
+from reamember.neuralnets.transformer import SONAR
 
 ##########################################################################################
 # Config
@@ -154,6 +155,108 @@ def config_summary(cfg):
         Console().print(outer)
 
 
+def fail_if_text_modality(cfg, command_name):
+    """
+    Abort early for commands that are not implemented for text modality yet.
+    """
+    if cfg.app.modality == "text":
+        raise click.ClickException(
+            f"El comando '{command_name}' no esta habilitado cuando app.modality es 'text'."
+        )
+
+
+def decode_text_embeddings(model, embeddings, device=None, batch_size=32):
+    """
+    Decode embeddings into text batches using SONAR.
+    """
+    reconstructed_texts = []
+
+    for start in tqdm(range(0, len(embeddings), batch_size), desc="Decoding texts"):
+        batch = torch.as_tensor(
+            embeddings[start : start + batch_size],
+            dtype=torch.float32,
+            device=device,
+        )
+        with torch.no_grad():
+            reconstructed_batch = model.decode(batch)
+
+        if isinstance(reconstructed_batch, str):
+            reconstructed_texts.append(reconstructed_batch)
+        else:
+            reconstructed_texts.extend(reconstructed_batch)
+
+    return reconstructed_texts
+
+
+def text_reconstruction_metrics(model, device, original_texts, embeddings, batch_size=32):
+    """
+    Compute reconstruction metrics directly in embedding space and text space.
+    """
+    if len(original_texts) == 0:
+        return [], {
+            "samples": 0,
+            "mean_cosine": 0.0,
+            "mean_l2": 0.0,
+            "mean_edit_distance": 0.0,
+        }
+
+    source_embeddings = torch.as_tensor(embeddings, dtype=torch.float32)
+    if device == "mps" and torch.backends.mps.is_available():
+        device = torch.device("cpu")
+    reconstructed_texts = decode_text_embeddings(
+        model=model,
+        embeddings=source_embeddings,
+        device=device,
+        batch_size=batch_size,
+    )
+
+    reconstructed_embeddings = []
+    for start in tqdm(
+        range(0, len(reconstructed_texts), batch_size),
+        desc="Encoding reconstructed texts",
+    ):
+        batch_texts = reconstructed_texts[start : start + batch_size]
+        with torch.no_grad():
+            batch_embeddings = model.encode(batch_texts)
+        reconstructed_embeddings.append(batch_embeddings.detach().cpu())
+
+    reconstructed_embeddings = torch.cat(reconstructed_embeddings, dim=0)
+
+    source_norm = torch.linalg.norm(source_embeddings, dim=1)
+    reconstructed_norm = torch.linalg.norm(reconstructed_embeddings, dim=1)
+    denom = torch.clamp(source_norm * reconstructed_norm, min=1e-12)
+    cosine_scores = torch.sum(source_embeddings * reconstructed_embeddings, dim=1) / denom
+    l2_scores = torch.linalg.norm(source_embeddings - reconstructed_embeddings, dim=1)
+
+    samples = []
+    for index, (original, reconstructed, cosine, l2) in enumerate(
+        zip(original_texts, reconstructed_texts, cosine_scores, l2_scores)
+    ):
+        samples.append(
+            {
+                "index": index,
+                "original": original,
+                "reconstructed": reconstructed,
+                "cosine": float(cosine.item()),
+                "l2": float(l2.item()),
+                "edit_distance": int(
+                    edit_distance(original.lower(), reconstructed.lower())
+                ),
+            }
+        )
+
+    summary = {
+        "samples": len(samples),
+        "mean_cosine": float(np.mean([item["cosine"] for item in samples])),
+        "mean_l2": float(np.mean([item["l2"] for item in samples])),
+        "mean_edit_distance": float(
+            np.mean([item["edit_distance"] for item in samples])
+        ),
+    }
+
+    return samples, summary
+
+
 # --------------------------------------------------------------
 # Encoder Commands
 
@@ -176,7 +279,8 @@ def train(config):
         click.echo(f"[INFO] Input shape: {input_shape}")
 
         for latent in cfg.neural.latent_dim:
-            path = f"experiments/{cfg.app.dataset}/latent_{latent}"
+            path = cfg.app.dataset.replace("/", "-")
+            path = f"experiments/{path}/latent_{latent}"
             path = Path(path)
             if not path.exists():
                 click.echo(f"[INFO] Creating path: {path}")
@@ -192,14 +296,13 @@ def train(config):
             )
 
     elif cfg.app.modality == "text":
-        from reamember.neuralnets.transformer import Transformer
-        from reamember.train import train_transformer
 
         dataset = TextDatasetWrapper(
             dataset_name=cfg.app.dataset,
+            column=cfg.app.column,
         )
 
-        model = Transformer(model_name="bert-base-uncased")
+        model = SONAR()
         # Update cfg.neural.latent_dim to match model latent_dim
         cfg.neural.latent_dim = [model.latent_dim]
         # Save updated config
@@ -211,18 +314,14 @@ def train(config):
             OmegaConf.save(cfg, f)
 
         for latent in cfg.neural.latent_dim:
-            path = f"experiments/{cfg.app.dataset}/latent_{latent}"
+            path = cfg.app.dataset.replace("/", "-")
+            path = f"experiments/{path}/latent_{latent}"
             path = Path(path)
             if not path.exists():
                 click.echo(f"[INFO] Creating path: {path}")
                 path.mkdir(parents=True, exist_ok=True)
 
-            train_transformer(
-                config=cfg.neural,
-                dataset=dataset,
-                name=f"{cfg.app.dataset}-{latent}",
-                save_path=path / "transformer.pth",
-            )
+            raise NotImplementedError("Fine tuning SONAR is not implemented yet. Please use the pretrained model.")
 
 
 @encoder.command()
@@ -247,7 +346,8 @@ def test(config, n):
         input_shape = dataset.test[0][0].shape
 
         for latent in cfg.neural.latent_dim:
-            path = f"experiments/{cfg.app.dataset}/latent_{latent}"
+            path = cfg.app.dataset.replace("/", "-")
+            path = f"experiments/{path}/latent_{latent}"
             path = Path(path)
 
             autoencoder = Autoencoder(input_shape=input_shape, latent_dim=latent)
@@ -300,26 +400,19 @@ def test(config, n):
 
         dataset = TextDatasetWrapper(
             dataset_name=cfg.app.dataset,
+            column=cfg.app.column,
         )
 
-        input_shape = dataset.test[0][0].shape
-
         for latent in cfg.neural.latent_dim:
-            path = f"experiments/{cfg.app.dataset}/latent_{latent}"
+            path = cfg.app.dataset.replace("/", "-")
+            path = f"experiments/{path}/latent_{latent}"
             path = Path(path)
 
-            transformer = Transformer(input_shape=input_shape, latent_dim=latent)
-            transformer_path = path / "transformer.pth"
-
-            if transformer_path.exists():
-                click.echo(f"[INFO] Loading transformer from: {transformer_path}")
-                transformer.load_state_dict(
-                    torch.load(transformer_path, map_location=device)
-                )
-                transformer.to(device)
+            if device == "mps" and torch.backends.mps.is_available():
+                click.echo("[WARNING] MPS device not supported in Fairseq pipelines. Using CPU instead.")
+                transformer = SONAR(device=torch.device("cpu"))
             else:
-                click.echo(f"[ERROR] Transformer does not exist in: {transformer_path}")
-                sys.exit(1)
+                transformer = SONAR(device=device)
 
             try:
                 embeddings_dataset = torch.load(
@@ -337,20 +430,47 @@ def test(config, n):
                 click.echo(f"[INFO] Creating path: {reconstructedTextPath}")
                 reconstructedTextPath.mkdir(parents=True, exist_ok=True)
 
+            total = len(embeddings_dataset.test.data)
+            limit = total if n == 0 else min(n, total)
+
+            original_texts = [str(text) for text in dataset.test.texts[:limit]]
+            test_embeddings = embeddings_dataset.test.data[:limit]
+
+            samples, summary = text_reconstruction_metrics(
+                model=transformer,
+                device=device,
+                original_texts=original_texts,
+                embeddings=test_embeddings,
+            )
+
             with open(
                 reconstructedTextPath / "reconstructed.txt", "w", encoding="utf-8"
             ) as f_out:
-                for i in tqdm(range(len(embeddings_dataset.test.data))):
-                    f = torch.as_tensor(
-                        embeddings_dataset.test.data[i],
-                        dtype=torch.float32,
-                        device=device,
-                    ).unsqueeze(0)
-                    with torch.no_grad():
-                        reconstructed = transformer.decode(f)
-                        f_out.write(reconstructed + "\n")
+                for sample in samples:
+                    f_out.write(sample["reconstructed"] + "\n")
+
+            metrics_path = reconstructedTextPath / "metrics.json"
+            with open(metrics_path, "w", encoding="utf-8") as f_out:
+                json.dump(
+                    {
+                        "dataset": cfg.app.dataset,
+                        "latent_dim": int(latent),
+                        "summary": summary,
+                        "samples": samples,
+                    },
+                    f_out,
+                    indent=4,
+                    ensure_ascii=False,
+                )
+
+            click.echo(
+                f"[INFO] Reconstruction metrics | cosine: {summary['mean_cosine']:.4f} "
+                f"| l2: {summary['mean_l2']:.4f} "
+                f"| edit distance: {summary['mean_edit_distance']:.4f}"
+            )
 
             click.echo(f"[INFO] Reconstructed texts saved to: {reconstructedTextPath}")
+            click.echo(f"[INFO] Reconstruction metrics saved to: {metrics_path}")
 
     # Done
     click.echo("[INFO] Encoder testing completed.")
@@ -381,7 +501,8 @@ def get_embeddings(config):
         input_shape = dataset.train[0][0].shape
 
         for latent in cfg.neural.latent_dim:
-            path = f"experiments/{cfg.app.dataset}/latent_{latent}"
+            path = cfg.app.dataset.replace("/", "-")
+            path = f"experiments/{path}/latent_{latent}"
             path = Path(path)
 
             # Load Autoencoder
@@ -400,23 +521,18 @@ def get_embeddings(config):
     elif cfg.app.modality == "text":
         dataset = TextDatasetWrapper(
             dataset_name=cfg.app.dataset,
+            column=cfg.app.column,
         )
 
+        model = SONAR(device=device)
+
         for latent in cfg.neural.latent_dim:
-            path = f"experiments/{cfg.app.dataset}/latent_{latent}"
+            path = cfg.app.dataset.replace("/", "-")
+            path = f"experiments/{path}/latent_{latent}"
             path = Path(path)
 
-            encoder_path = path / "transformer.pth"
-            if encoder_path.exists():
-                click.echo(f"[INFO] Loading transformer from: {encoder_path}")
-                encoder = Transformer()
-                encoder.load(encoder_path)
-            else:
-                click.echo(f"[ERROR] Transformer path does not exist: {encoder_path}")
-                sys.exit(1)
-
             get_embeddings(
-                encoder,
+                model,
                 dataset,
                 modality=cfg.app.modality,
                 device=device,
@@ -439,10 +555,12 @@ def train(config):
     from reamember.train import train_classifier
 
     cfg = OmegaConf.load(config)
+    fail_if_text_modality(cfg, "classifier train")
     config_summary(cfg)
 
     for latent in cfg.neural.latent_dim:
-        path = f"experiments/{cfg.app.dataset}/latent_{latent}"
+        path = cfg.app.dataset.replace("/", "-")
+        path = f"experiments/{path}/latent_{latent}"
         path = Path(path)
 
         try:
@@ -470,10 +588,12 @@ def train(config):
 def test(config):
     "👨🏻‍🏫 Test the classifier on the test set."
     cfg = OmegaConf.load(config)
+    fail_if_text_modality(cfg, "classifier test")
     config_summary(cfg)
 
     for latent in cfg.neural.latent_dim:
-        path = f"experiments/{cfg.app.dataset}/latent_{latent}"
+        path = cfg.app.dataset.replace("/", "-")
+        path = f"experiments/{path}/latent_{latent}"
         path = Path(path)
 
         embeddings_dataset = torch.load(
@@ -549,6 +669,7 @@ def test(config):
 def get_bestparams(config):
     "🔍 Search best memory sizes and filling percents."
     cfg = OmegaConf.load(config)
+    fail_if_text_modality(cfg, "get-bestparams")
     config_summary(cfg)
 
     from reamember.neuralnets.classifier import Classifier
@@ -583,7 +704,8 @@ def get_bestparams(config):
     progress.start_task(latent_task)
     
     for latent in cfg.neural.latent_dim:
-        path = f"experiments/{cfg.app.dataset}/latent_{latent}"
+        path = cfg.app.dataset.replace("/", "-")
+        path = f"experiments/{path}/latent_{latent}"
         path = Path(path)
 
         # Grid search over the memory size (m) and the filling percent.
@@ -757,6 +879,7 @@ def create_memories(config, n):
     from reamember.neuralnets.classifier import Classifier
 
     cfg = OmegaConf.load(config)
+    fail_if_text_modality(cfg, "create-memories")
     config_summary(cfg)
 
     latent = (
@@ -772,7 +895,8 @@ def create_memories(config, n):
 
     print(f"[INFO] Creating memories with latent={latent}, domain={domain}")
 
-    path = f"experiments/{cfg.app.dataset}/latent_{latent}"
+    path = cfg.app.dataset.replace("/", "-")
+    path = f"experiments/{path}/latent_{latent}"
     path = Path(path)
 
     # Dataset ------------------------------------------------------------
@@ -919,6 +1043,7 @@ def dream(config, num_cycles, init_type, idx):
     """
 
     cfg = OmegaConf.load(config)
+    fail_if_text_modality(cfg, "dream")
     config_summary(cfg)
 
     path = Path(f"experiments/{cfg.app.dataset}/latent_{cfg.neural.latent_dim}")

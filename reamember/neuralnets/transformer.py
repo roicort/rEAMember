@@ -14,6 +14,7 @@ class SONAR(pl.LightningModule):
         encoder="text_sonar_basic_encoder",
         decoder="text_sonar_basic_decoder",
         tokenizer="text_sonar_basic_encoder",
+        max_seq_len=128,
         device="cpu",
     ):
         super().__init__()
@@ -23,90 +24,35 @@ class SONAR(pl.LightningModule):
         self.encoder_name = encoder
         self.decoder_name = decoder
         self.tokenizer_name = tokenizer
-        self.device = torch.device(device)
+        self.max_seq_len = max_seq_len
+        self.pipeline_device = torch.device(device)
 
         self.encode_model = TextToEmbeddingModelPipeline(
             encoder=self.encoder_name,
             tokenizer=self.tokenizer_name,
-            device=self.device,
+            device=self.pipeline_device,
         )
         self.decode_model = EmbeddingToTextModelPipeline(
             decoder=self.decoder_name,
             tokenizer=self.tokenizer_name,
-            device=self.device,
+            device=self.pipeline_device,
         )
 
-    def encode(
-        self,
-        texts,
-        max_seq_len=128,
-        source_lang="eng_Latn",
-        batch_size=32,
-        device=None,
-    ):
-        if device is None:
-            device = self.device
+    def encode(self, x, **kwargs):
+        x = self.encode_model.predict(
+            x,
+            source_lang="eng_Latn",
+            max_seq_len=self.max_seq_len,
+        )
+        return x
 
-        if isinstance(texts, str):
-            texts = [texts]
-
-        if torch.is_tensor(texts):
-            texts = [x for x in texts.tolist()]
-
-        if not isinstance(texts, (list, tuple)):
-            raise ValueError("`texts` debe ser una lista o tupla de strings")
-
-        outputs = []
-        for start in range(0, len(texts), batch_size):
-            batch = texts[start : start + batch_size]
-            embeddings = self.encode_model.predict(
-                batch,
-                source_lang=source_lang,
-                max_seq_len=max_seq_len,
-            )
-
-            if torch.is_tensor(embeddings):
-                outputs.append(embeddings.detach().cpu())
-            elif isinstance(embeddings, list):
-                outputs.append(torch.tensor(embeddings, dtype=torch.float32))
-            else:
-                outputs.append(torch.from_numpy(embeddings).float())
-
-        if len(outputs) == 0:
-            return torch.empty((0, self.latent_dim), dtype=torch.float32)
-
-        return torch.cat(outputs, dim=0)
-
-    def decode(
-        self,
-        embeddings,
-        target_lang="eng_Latn",
-        max_seq_len=256,
-        batch_size=32,
-    ):
-        if torch.is_tensor(embeddings):
-            embeddings = embeddings.detach().cpu().numpy()
-
-        if isinstance(embeddings, (list, tuple)) and len(embeddings) > 0 and torch.is_tensor(embeddings[0]):
-            embeddings = torch.stack(embeddings).cpu().numpy()
-
-        if embeddings is None or len(embeddings) == 0:
-            return []
-
-        outputs = []
-        for start in range(0, len(embeddings), batch_size):
-            batch = embeddings[start : start + batch_size]
-            texts = self.decode_model.predict(
-                batch,
-                target_lang=target_lang,
-                max_seq_len=max_seq_len,
-            )
-            if isinstance(texts, str):
-                outputs.append(texts)
-            else:
-                outputs.extend(texts)
-
-        return outputs
+    def decode(self, z, **kwargs):
+        z = self.decode_model.predict(
+            z,
+            target_lang="eng_Latn",
+            max_seq_len=self.max_seq_len,
+        )
+        return z
 
     def forward(self, texts, **kwargs):
         return self.encode(texts, **kwargs)
@@ -123,7 +69,8 @@ class SONAR(pl.LightningModule):
             "tokenizer": self.tokenizer_name,
             "latent_dim": self.latent_dim,
             "input_shape": self.input_shape,
-            "device": str(self.device),
+            "max_seq_len": self.max_seq_len,
+            "device": str(self.pipeline_device),
         }
 
         torch.save(metadata, path)
@@ -153,5 +100,6 @@ class SONAR(pl.LightningModule):
             encoder=metadata.get("encoder", "text_sonar_basic_encoder"),
             decoder=metadata.get("decoder", "text_sonar_basic_decoder"),
             tokenizer=metadata.get("tokenizer", "text_sonar_basic_encoder"),
+            max_seq_len=metadata.get("max_seq_len", 128),
             device=device,
         )

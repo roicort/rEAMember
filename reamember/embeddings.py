@@ -22,26 +22,37 @@ def evalImage(dataloader, model, device=None):
 
 
 def evalText(dataloader, model, device=None):
-    import gc
-
     embeddings = []
+    latent_dim = getattr(model, "latent_dim", 0)
+
     with torch.no_grad():
         for batch in tqdm(dataloader):
             if isinstance(batch, (list, tuple)) and len(batch) == 2:
-                x, _ = batch
+                texts, _ = batch
             else:
-                x = batch
-            z = model.encode(x, device=device)
-            embeddings.append(z)
-            del x, z
-            if device == "cuda":
-                torch.cuda.empty_cache()
-            elif device == "mps":
-                torch.mps.empty_cache()
+                texts = batch
+
+            if isinstance(texts, str):
+                texts = [texts]
+            elif not isinstance(texts, list):
+                texts = list(texts)
+
+            batch_embeddings = model.encode(
+                texts,
+                source_lang="eng_Latn",
+                max_seq_len=128,
+                device=device,
+            )
+
+            if torch.is_tensor(batch_embeddings):
+                embeddings.append(batch_embeddings.detach().cpu().float())
             else:
-                gc.collect()
-    embeddings = torch.cat(embeddings, dim=0)
-    return embeddings
+                embeddings.append(torch.as_tensor(batch_embeddings, dtype=torch.float32))
+
+    if len(embeddings) == 0:
+        return torch.empty((0, latent_dim), dtype=torch.float32)
+
+    return torch.cat(embeddings, dim=0)
 
 
 def get_embeddings(
@@ -66,9 +77,9 @@ def get_embeddings(
     )
 
     if modality == "text":
-        model.model.eval()
+        model.eval()
         if device is not None:
-            model.model.to(device)
+            model.to(device)
         embeddings_train = evalText(dataloader_train, model, device)
         embeddings_test = evalText(dataloader_test, model, device)
 
@@ -92,6 +103,7 @@ def get_embeddings(
     )
 
     if save_path is not None:
+        save_path.mkdir(parents=True, exist_ok=True)
         print(f"[INFO] Saving embeddings in: {save_path}")
         torch.save(embedding_dataset, save_path / "embeddings.pth")
 
@@ -148,16 +160,24 @@ def get_embeddings(
         pca = PCA(n_components=2)
         pca_embeddings = pca.fit_transform(embeddings_np)
 
+        # Load embeddings with labels for plotting
+        embedding_dataset = torch.load(save_path / "embeddings.pth", map_location="cpu")
+
         # Plot PCA embeddings using plotly
         import plotly.express as px
 
-        labels_all = (
-            torch.cat(
-                [embedding_dataset.train.targets, embedding_dataset.test.targets], dim=0
+        if embedding_dataset.train.targets is not None and embedding_dataset.test.targets is not None:
+            labels_all = (
+                torch.cat(
+                    [embedding_dataset.train.targets, embedding_dataset.test.targets], dim=0
+                )
+                .cpu()
+                .numpy()
             )
-            .cpu()
-            .numpy()
-        )
+        else:
+            labels_all = ["train"] * len(embedding_dataset.train.data) + ["test"] * len(
+                embedding_dataset.test.data
+            )
         fig = px.scatter(
             x=pca_embeddings[:, 0],
             y=pca_embeddings[:, 1],
