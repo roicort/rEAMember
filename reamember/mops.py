@@ -216,10 +216,10 @@ def evalm_text_confusion(eam, seen_dataset, unseen_dataset):
     Columns: recognized, unrecognized.
     """
 
-    _, seen_recognitions, _, seen_recognized, seen_unrecognized = evalm_text(
+    _, seen_recognitions, seen_weights, seen_recognized, seen_unrecognized = evalm_text(
         eam, seen_dataset
     )
-    _, unseen_recognitions, _, unseen_recognized, unseen_unrecognized = evalm_text(
+    _, unseen_recognitions, unseen_weights, unseen_recognized, unseen_unrecognized = evalm_text(
         eam, unseen_dataset
     )
 

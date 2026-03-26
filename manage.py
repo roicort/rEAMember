@@ -587,8 +587,7 @@ def test_encoder(config, n):
 
                     eam, _, _ = memorize(
                         eam,
-                        dataset=memory_wrapper.train,
-                        filling_percent=1.0,
+                        dataset=memory_wrapper.train
                     )
 
                     confusion = evalm_text_confusion(
@@ -601,7 +600,7 @@ def test_encoder(config, n):
                         "dataset": cfg.app.dataset,
                         "latent_dim": int(latent),
                         "memory_domain": domain,
-                        "filling_percent": filling_percent,
+                        "sigma": cfg.memory.sigma,
                         "seen_source": "first_half_of_train",
                         "unseen_source": "second_half_of_train",
                         "labels": confusion["labels"],
@@ -634,11 +633,11 @@ def test_encoder(config, n):
                         )
                     )
                     fig.update_layout(
-                        title=f"Text Memory Recognition Confusion Matrix (m={domain})",
+                        title=f"Text Memory Recognition Confusion Matrix (m={domain}) with σ={cfg.memory.sigma}",
                         xaxis_title="Memory Decision",
                         yaxis_title="Sample Type",
-                        width=800,
-                        height=500,
+                        width=1200,
+                        height=800,
                     )
                     fig.write_html(reconstructedTextPath / f"recognition_confusion_domain_{domain}.html")
                     fig.write_image(reconstructedTextPath / f"recognition_confusion_domain_{domain}.png")
