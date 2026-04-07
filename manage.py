@@ -210,9 +210,8 @@ def get_besttext_params(cfg, config):
     global_results = []
 
     msizes = cfg.memory.domain
-    filling_percents = [0.5]
+    filling_percents = cfg.memory.filling
     folds = cfg.memory.folds
-    noise_level = cfg.memory.noise_level
 
     from rich.progress import (
         Progress,
@@ -248,7 +247,7 @@ def get_besttext_params(cfg, config):
     progress.start_task(latent_task)
 
     for latent in cfg.neural.latent_dim:
-        path = get_experiment_path(cfg.app.dataset, EXPERIMENTS_ROOT, latent)
+        path = get_experiment_path(cfg, EXPERIMENTS_ROOT, latent)
         embeddings_dataset = load_embeddings_dataset(path, device)
 
         dataset = TextDatasetWrapper(
@@ -279,12 +278,10 @@ def get_besttext_params(cfg, config):
                 for train_idx, val_idx in kf.split(X):
                     X_train, X_val = X[train_idx], X[val_idx]
                     texts_val = texts[val_idx].tolist()
-                    split_index = max(1, len(X_train) // 2)
 
                     fold_train_wrapper = EmbeddingDatasetWrapper(
-                        train=torch.tensor(X_train[:split_index], dtype=torch.float32),
+                        train=torch.tensor(X_train, dtype=torch.float32),
                         test=torch.tensor(X_val, dtype=torch.float32),
-                        noise_level=noise_level,
                     )
 
                     eam = create_associative_memory(cfg, latent, msize)
@@ -292,7 +289,7 @@ def get_besttext_params(cfg, config):
                     eam, _, _ = memorize(
                         eam,
                         dataset=fold_train_wrapper.train,
-                        filling_percent=1.0,
+                        filling_percent=filling_percent,
                     )
 
                     (

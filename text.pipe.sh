@@ -1,6 +1,6 @@
 #!/bin/bash
 
-CONFIG="./config/dictionary.yml"
+CONFIG="./config/dictionary-def.yml"
 TIMES_FILE="times.txt"
 
 set -e
@@ -18,10 +18,10 @@ function timeit() {
 }
 
 #timeit "uv run manage.py get-embeddings --config $CONFIG" "get-embeddings"
-timeit "uv run manage.py encoder test --config $CONFIG --n 100" "encoder test"
+#timeit "uv run manage.py encoder test --config $CONFIG --n 100" "encoder test"
 timeit "uv run manage.py get-bestparams --config $CONFIG" "get-bestparams"
 
 CONFIG="${CONFIG/.yml/.best.yml}"
 
-timeit "uv run manage.py plot --config $CONFIG" "plot"
-timeit "uv run manage.py create-memories --config $CONFIG --n 100" "create-memories"
+#timeit "uv run manage.py plot --config $CONFIG" "plot"
+#timeit "uv run manage.py create-memories --config $CONFIG --n 1000" "create-memories"

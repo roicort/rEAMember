@@ -12,9 +12,8 @@ neural:
 
 memory:
   folds: 5
-  domain: [1, 2, 3, 4, 8, 16, 32, 64, 128, 512, 1024]
-  filling: [0.8, 1.0]
-  noise_level: 0.0
+  domain: [1, 2, 4, 8, 16, 32, 64, 128, 512, 1024]
+  filling: [0.5, 0.8, 1.0]
   iota: 0.0
   kappa: 0.0
   xi: 0.0
