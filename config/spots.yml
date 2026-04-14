@@ -1,6 +1,9 @@
 app:
   dataset: SPOTS
   modality: image
+  crossval:
+    folds: 5
+    seed: 42
 
 neural:
   latent_dim: [32, 64, 128, 256, 512, 1024]
@@ -11,7 +14,6 @@ neural:
   delta: 0.005
 
 memory:
-  folds: 5
   domain: [1, 2, 4, 8, 16, 32, 64, 128, 512, 1024]
   filling: [0.5, 0.8, 1.0]
   iota: 0.0

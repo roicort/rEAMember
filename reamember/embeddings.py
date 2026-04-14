@@ -95,7 +95,7 @@ def get_embeddings(
         print("[INFO] Embeddings train shape:", embeddings_train.shape)
         print("[INFO] Embeddings test shape:", embeddings_test.shape)
 
-        from .dataset import EmbeddingDatasetWrapper
+        from .datasets.embedding import EmbeddingDatasetWrapper
 
         embedding_dataset = EmbeddingDatasetWrapper(
             train=embeddings_train,
@@ -152,7 +152,7 @@ def get_embeddings(
 
 
     # Load embeddings with labels for plotting
-    from reamember.dataset import EmbeddingDatasetWrapper, EmbeddingDataset
+    from reamember.datasets.embedding import EmbeddingDatasetWrapper, EmbeddingDataset
     torch.serialization.add_safe_globals([EmbeddingDatasetWrapper, EmbeddingDataset])
     embedding_dataset = torch.load(save_path / "embeddings.pth")
 

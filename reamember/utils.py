@@ -1,5 +1,6 @@
 import torch
 import rich_click as click
+from contextlib import contextmanager
 from rich import box
 from rich.columns import Columns
 from rich.console import Console
@@ -11,6 +12,24 @@ from pathlib import Path
 import json
 import sys
 from tqdm import tqdm
+from reamember.eam.associative import NumpyAssociativeMemory as AssociativeMemory
+
+
+console = Console()
+
+def create_associative_memory(cfg, latent, domain, device=None):
+    """
+    Create an associative memory instance from config values.
+    """
+    return AssociativeMemory(
+        n=latent,
+        m=domain,
+        xi=cfg.memory.xi,
+        sigma=cfg.memory.sigma,
+        iota=cfg.memory.iota,
+        kappa=cfg.memory.kappa,
+        device=device,
+    )
 
 # Configure rich click for better CLI output
 rich_conf = click.RichHelpConfiguration(
@@ -79,7 +98,22 @@ def config_summary(cfg):
             padding=(0, 1),
             expand=True,
         )
-        Console().print(outer)
+        console.print(outer)
+
+
+@contextmanager
+def task_status(message: str, spinner: str = "dots"):
+    """
+    Show a Rich status spinner while a CLI task is running.
+    """
+    with console.status(f"[bold cyan]{message}[/bold cyan]", spinner=spinner):
+        try:
+            yield
+        except Exception:
+            console.print(f"[bold red]✗[/bold red] {message}")
+            raise
+        else:
+            console.print(f"[bold green]✓[/bold green] {message}")
 
 
 def fail_if_text_modality(cfg, command_name):

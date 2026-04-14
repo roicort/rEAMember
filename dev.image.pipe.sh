@@ -1,6 +1,6 @@
 #!/bin/bash
 
-CONFIG="./config/fashion.yml"
+CONFIG="./config/dev.yml"
 TIMES_FILE="times.txt"
 
 set -e
@@ -17,12 +17,12 @@ function timeit() {
     echo "$LABEL: $ELAPSED seconds" >> $TIMES_FILE
 }
 
-timeit "uv run manage.py clean-logs" "clean-logs"
-timeit "uv run manage.py encoder train --config $CONFIG" "encoder train"
-timeit "uv run manage.py get-embeddings --config $CONFIG" "get-embeddings"
-timeit "uv run manage.py encoder test --config $CONFIG --n 100" "encoder test"
-timeit "uv run manage.py classifier train --config $CONFIG" "classifier train"
-timeit "uv run manage.py classifier test --config $CONFIG" "classifier test"
+#timeit "uv run manage.py clean-logs" "clean-logs"
+#timeit "uv run manage.py encoder train --config $CONFIG" "encoder train"
+#timeit "uv run manage.py get-embeddings --config $CONFIG" "get-embeddings"
+#timeit "uv run manage.py encoder test --config $CONFIG --n 100" "encoder test"
+#timeit "uv run manage.py classifier train --config $CONFIG" "classifier train"
+#timeit "uv run manage.py classifier test --config $CONFIG" "classifier test"
 timeit "uv run manage.py get-bestparams --config $CONFIG" "get-bestparams"
 
 CONFIG="${CONFIG/.yml/.best.yml}"

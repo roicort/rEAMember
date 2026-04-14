@@ -1,22 +1,26 @@
 app:
   dataset: FashionMNIST
   modality: image
+  column: null
   crossval:
-    folds: 5
+    folds: 2
     seed: 42
-
 neural:
-  latent_dim: [32, 64, 128, 256, 512, 1024]
+  latent_dim:
+  - 256
   epochs: 50
   batch_size: 64
   learning_rate: 0.001
   patience: 7
   delta: 0.005
-
 memory:
-  domain: [1, 2, 4, 8, 16, 32, 64, 128, 512, 1024]
-  filling: [0.5, 0.8, 1.0]
+  noise_level: 0.0
+  domain:
+  - 2
+  filling:
+  - 0.8
   iota: 0.0
   kappa: 0.0
   xi: 0.0
   sigma: 0.1
+  m: null

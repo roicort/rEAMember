@@ -1,6 +1,5 @@
 import numpy as np
 import torch
-from sklearn.metrics import accuracy_score
 from tqdm import tqdm
 
 
@@ -17,6 +16,17 @@ def rsize_recall(recall, msize, min_value, max_value):
         ) + min_value
 
 
+def _quantize_features(features, eam, min_value, max_value):
+    scale = max_value - min_value
+    if torch.is_tensor(scale):
+        eps = torch.finfo(features.dtype).eps
+        scale = torch.clamp(scale, min=eps)
+    elif scale == 0:
+        scale = 1.0
+
+    return torch.round((features - min_value) / scale * (eam.m - 1)).to(torch.int16)
+
+
 def memorize(eam, dataset, filling_percent=1.0):
     """
     Create and fill memory registering features from the dataset.
@@ -26,9 +36,7 @@ def memorize(eam, dataset, filling_percent=1.0):
     min_value = features.min()
     max_value = features.max()
 
-    features_rounded = torch.round(
-        (features - min_value) / (max_value - min_value) * (eam.m - 1)
-    ).to(torch.int16)
+    features_rounded = _quantize_features(features, eam, min_value, max_value)
 
     if filling_percent < 1.0:
         n_features = int(len(features_rounded) * filling_percent)
@@ -86,17 +94,17 @@ def remember(cfg, eam, dataset, min_value, max_value):
     return memories_features, memories_recognition, memories_weights
 
 
-def evalm(eam, classifier, dataset):
+def evalm(eam, classifier, dataset, min_value=None, max_value=None):
     """
     Evaluate the memory on the dataset.
     """
 
     features = dataset.data
-    min_value = features.min()
-    max_value = features.max()
-    features_rounded = torch.round(
-        (features - min_value) / (max_value - min_value) * (eam.m - 1)
-    ).to(torch.int16)
+    if min_value is None:
+        min_value = features.min()
+    if max_value is None:
+        max_value = features.max()
+    features_rounded = _quantize_features(features, eam, min_value, max_value)
     labels = dataset.targets.cpu().numpy()
 
     print(
@@ -127,7 +135,7 @@ def evalm(eam, classifier, dataset):
     # Results
 
     answers = np.array(answers)
-    recognized = answers != None
+    recognized = np.array([answer is not None for answer in answers], dtype=bool)
     predictions = answers[recognized]
     labels = labels[recognized]
 
@@ -166,17 +174,17 @@ def evalm(eam, classifier, dataset):
     )
 
 
-def evalm_text(eam, dataset):
+def evalm_text(eam, dataset, min_value=None, max_value=None):
     """
     Evaluate the memory on a text-embedding dataset.
     """
 
     features = dataset.data
-    min_value = features.min()
-    max_value = features.max()
-    features_rounded = torch.round(
-        (features - min_value) / (max_value - min_value) * (eam.m - 1)
-    ).to(torch.int16)
+    if min_value is None:
+        min_value = features.min()
+    if max_value is None:
+        max_value = features.max()
+    features_rounded = _quantize_features(features, eam, min_value, max_value)
 
     print(
         f"[INFO] Evaluating {len(features_rounded)} text features with shape {features_rounded.shape}..."
@@ -209,48 +217,76 @@ def evalm_text(eam, dataset):
     return memories_features, recognitions, weights, recognized_percentage, unrecognized_percentage
 
 
-def evalm_text_confusion(eam, seen_dataset, unseen_dataset):
+def evalm_text_confusion(
+    eam,
+    seen_dataset,
+    unseen_dataset,
+    test_dataset=None,
+    min_value=None,
+    max_value=None,
+):
     """
     Build a binary confusion matrix for text memory recognition.
-    Rows: seen, unseen.
+    Rows: seen, unseen, optional test.
     Columns: recognized, unrecognized.
     """
 
+    # Eam is filled with only the seen_dataset (first half of the training dataset)
+
+    # Evaluate on both seen and unseen datasets
     _, seen_recognitions, seen_weights, seen_recognized, seen_unrecognized = evalm_text(
-        eam, seen_dataset
+        eam, seen_dataset, min_value=min_value, max_value=max_value
     )
+    # Evaluate on the unseen dataset
     _, unseen_recognitions, unseen_weights, unseen_recognized, unseen_unrecognized = evalm_text(
-        eam, unseen_dataset
+        eam, unseen_dataset, min_value=min_value, max_value=max_value
     )
+
+    row_labels = ["seen", "unseen"]
+    matrix_rows = []
+    counts = {}
+    rates = {
+        "seen_recognized_rate": float(seen_recognized),
+        "seen_unrecognized_rate": float(seen_unrecognized),
+        "unseen_recognized_rate": float(unseen_recognized),
+        "unseen_unrecognized_rate": float(unseen_unrecognized),
+    }
 
     seen_total = len(seen_recognitions)
     unseen_total = len(unseen_recognitions)
-
-    matrix = np.array(
-        [
-            [int(np.sum(seen_recognitions)), int(seen_total - np.sum(seen_recognitions))],
-            [
-                int(np.sum(unseen_recognitions)),
-                int(unseen_total - np.sum(unseen_recognitions)),
-            ],
-        ],
-        dtype=int,
+    matrix_rows.append(
+        [int(np.sum(seen_recognitions)), int(seen_total - np.sum(seen_recognitions))]
     )
+    matrix_rows.append(
+        [
+            int(np.sum(unseen_recognitions)),
+            int(unseen_total - np.sum(unseen_recognitions)),
+        ]
+    )
+    counts["seen_total"] = int(seen_total)
+    counts["unseen_total"] = int(unseen_total)
+
+    if test_dataset is not None:
+        _, test_recognitions, _, test_recognized, test_unrecognized = evalm_text(
+            eam, test_dataset, min_value=min_value, max_value=max_value
+        )
+        test_total = len(test_recognitions)
+        row_labels.append("test")
+        matrix_rows.append(
+            [int(np.sum(test_recognitions)), int(test_total - np.sum(test_recognitions))]
+        )
+        counts["test_total"] = int(test_total)
+        rates["test_recognized_rate"] = float(test_recognized)
+        rates["test_unrecognized_rate"] = float(test_unrecognized)
+
+    matrix = np.array(matrix_rows, dtype=int)
 
     return {
         "labels": {
-            "rows": ["seen", "unseen"],
+            "rows": row_labels,
             "columns": ["recognized", "unrecognized"],
         },
         "matrix": matrix,
-        "counts": {
-            "seen_total": int(seen_total),
-            "unseen_total": int(unseen_total),
-        },
-        "rates": {
-            "seen_recognized_rate": float(seen_recognized),
-            "seen_unrecognized_rate": float(seen_unrecognized),
-            "unseen_recognized_rate": float(unseen_recognized),
-            "unseen_unrecognized_rate": float(unseen_unrecognized),
-        },
+        "counts": counts,
+        "rates": rates,
     }

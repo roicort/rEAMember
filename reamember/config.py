@@ -15,10 +15,17 @@ class Modality(str, Enum):
 
 
 @dataclass
+class CrossValConfig:
+    folds: int = 5
+    seed: int = 42
+
+
+@dataclass
 class AppConfig:
     dataset: str = MISSING
     modality: Modality = MISSING
     column: str | None = None
+    crossval: CrossValConfig = field(default_factory=CrossValConfig)
 
 
 @dataclass
@@ -33,7 +40,6 @@ class NeuralConfig:
 
 @dataclass
 class MemoryConfig:
-    folds: int = 5
     noise_level: float | None = 0.0
     domain: list[int] = field(default_factory=list)
     filling: list[float] = field(default_factory=list)
@@ -87,8 +93,10 @@ def _validate_runtime_config(cfg: DictConfig) -> None:
     if any(value <= 0 or value > 1 for value in cfg.memory.filling):
         raise ValueError("memory.filling values must be in the range (0, 1]")
 
-    if cfg.memory.folds <= 1:
-        raise ValueError("memory.folds must be greater than 1")
+    if cfg.app.crossval.folds <= 1:
+        raise ValueError("app.crossval.folds must be greater than 1")
+    if cfg.app.crossval.seed < 0:
+        raise ValueError("app.crossval.seed must be greater than or equal to 0")
     if cfg.memory.noise_level is not None and cfg.memory.noise_level < 0:
         raise ValueError("memory.noise_level must be greater than or equal to 0")
     if cfg.memory.sigma < 0:
