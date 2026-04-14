@@ -70,7 +70,7 @@ def get_embeddings(
     Crea internamente el DataLoader para asegurar el batch correcto.
     """
 
-    if not os.path.exists(save_path):
+    if not os.path.exists(save_path / "embeddings.pth"):
         dataloader_train = DataLoader(
             dataset.train, batch_size=batch_size, shuffle=False, num_workers=num_workers
         )
