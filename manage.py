@@ -168,7 +168,7 @@ def test_encoder(config, n):
         with task_status("Testing text encoder"):
             test_text_encoder(
                 cfg,
-                n=n,
+                n_examples=n,
                 device=device,
                 experiments_root=EXPERIMENTS_ROOT,
             )

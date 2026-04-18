@@ -27,16 +27,12 @@ def _quantize_features(features, eam, min_value, max_value):
     return torch.round((features - min_value) / scale * (eam.m - 1)).to(torch.int16)
 
 
-def memorize(eam, dataset, filling_percent=1.0):
+def memorize(eam, dataset, quantize_min, quantize_max, filling_percent=1.0):
     """
     Create and fill memory registering features from the dataset.
     """
 
-    features = dataset.data
-    min_value = features.min()
-    max_value = features.max()
-
-    features_rounded = _quantize_features(features, eam, min_value, max_value)
+    features_rounded = _quantize_features(dataset.data, eam, quantize_min, quantize_max)
 
     if filling_percent < 1.0:
         n_features = int(len(features_rounded) * filling_percent)
@@ -48,10 +44,10 @@ def memorize(eam, dataset, filling_percent=1.0):
     for features in tqdm(features_rounded):
         eam.register(features)
 
-    return eam, min_value, max_value
+    return eam
 
 
-def remember(cfg, eam, dataset, min_value, max_value):
+def remember(cfg, eam, dataset, dequantize_min, dequantize_max):
     """
     Remember features from the dataset.
     """
@@ -61,18 +57,12 @@ def remember(cfg, eam, dataset, min_value, max_value):
     features = dataset.data
 
     features_rounded = torch.round(
-        (features - min_value) / (max_value - min_value) * (eam.m - 1)
+        (features - dequantize_min) / (dequantize_max - dequantize_min) * (eam.m - 1)
     ).to(torch.int16)
 
     memories_features = []
     memories_recognition = []
     memories_weights = []
-
-    # latent = (
-    #    int(cfg.neural.latent_dim[0])
-    #    if isinstance(cfg.neural.latent_dim, ListConfig)
-    #    else int(cfg.neural.latent_dim)
-    # )
 
     for feature in tqdm(features_rounded):
         memory, recognized, weight = eam.recall(feature)
@@ -87,24 +77,23 @@ def remember(cfg, eam, dataset, min_value, max_value):
         memories_weights.append(weight)
 
     memories_features = np.array(memories_features, dtype=float)
-    memories_features = rsize_recall(memories_features, eam.m, min_value, max_value)
+    memories_features = rsize_recall(memories_features, eam.m, dequantize_min, dequantize_max)
     memories_recognition = np.array(memories_recognition, dtype=int)
     memories_weights = np.array(memories_weights, dtype=float)
 
     return memories_features, memories_recognition, memories_weights
 
 
-def evalm(eam, classifier, dataset, min_value=None, max_value=None):
+def evalm(eam, classifier, dataset):
     """
     Evaluate the memory on the dataset.
     """
 
     features = dataset.data
-    if min_value is None:
-        min_value = features.min()
-    if max_value is None:
-        max_value = features.max()
-    features_rounded = _quantize_features(features, eam, min_value, max_value)
+    dequantize_min = features.min()
+    dequantize_max = features.max()
+    
+    features_rounded = _quantize_features(features, eam, dequantize_min, dequantize_max)
     labels = dataset.targets.cpu().numpy()
 
     print(
@@ -117,7 +106,7 @@ def evalm(eam, classifier, dataset, min_value=None, max_value=None):
         memory, recognized, weight = eam.recall(feature)
         if recognized:
             memory = memory.cpu().numpy() if torch.is_tensor(memory) else memory
-            memory = rsize_recall(memory, eam.m, min_value, max_value)
+            memory = rsize_recall(memory, eam.m, dequantize_min, dequantize_max)
             with torch.no_grad():
                 memory = (
                     torch.tensor(
@@ -174,17 +163,12 @@ def evalm(eam, classifier, dataset, min_value=None, max_value=None):
     )
 
 
-def evalm_text(eam, dataset, min_value=None, max_value=None):
+def evalm_text(eam, dataset, quantize_min, quantize_max):
     """
     Evaluate the memory on a text-embedding dataset.
     """
 
-    features = dataset.data
-    if min_value is None:
-        min_value = features.min()
-    if max_value is None:
-        max_value = features.max()
-    features_rounded = _quantize_features(features, eam, min_value, max_value)
+    features_rounded = _quantize_features(dataset.data, eam, quantize_min, quantize_max)
 
     print(
         f"[INFO] Evaluating {len(features_rounded)} text features with shape {features_rounded.shape}..."
@@ -205,7 +189,7 @@ def evalm_text(eam, dataset, min_value=None, max_value=None):
         weights.append(weight)
 
     memories_features = np.array(memories_features, dtype=float)
-    memories_features = rsize_recall(memories_features, eam.m, min_value, max_value)
+    memories_features = rsize_recall(memories_features, eam.m, quantize_min, quantize_max)
     recognitions = np.array(recognitions, dtype=bool)
     weights = np.array(weights, dtype=float)
 
@@ -221,9 +205,9 @@ def evalm_text_confusion(
     eam,
     seen_dataset,
     unseen_dataset,
+    quantize_min,
+    quantize_max,
     test_dataset=None,
-    min_value=None,
-    max_value=None,
 ):
     """
     Build a binary confusion matrix for text memory recognition.
@@ -235,11 +219,11 @@ def evalm_text_confusion(
 
     # Evaluate on both seen and unseen datasets
     _, seen_recognitions, seen_weights, seen_recognized, seen_unrecognized = evalm_text(
-        eam, seen_dataset, min_value=min_value, max_value=max_value
+        eam, seen_dataset, quantize_min, quantize_max
     )
     # Evaluate on the unseen dataset
     _, unseen_recognitions, unseen_weights, unseen_recognized, unseen_unrecognized = evalm_text(
-        eam, unseen_dataset, min_value=min_value, max_value=max_value
+        eam, unseen_dataset, quantize_min, quantize_max
     )
 
     row_labels = ["seen", "unseen"]
@@ -268,7 +252,7 @@ def evalm_text_confusion(
 
     if test_dataset is not None:
         _, test_recognitions, _, test_recognized, test_unrecognized = evalm_text(
-            eam, test_dataset, min_value=min_value, max_value=max_value
+            eam, test_dataset, quantize_min, quantize_max
         )
         test_total = len(test_recognitions)
         row_labels.append("test")

@@ -39,7 +39,7 @@ def create_sonar_model(runtime_device):
     return SONAR(device=runtime_device)
 
 
-def test_text_encoder(cfg, n, device, experiments_root):
+def test_text_encoder(cfg, n_examples, device, experiments_root):
     from omegaconf import ListConfig
 
     click.echo(f"[INFO] Loading dataset: {cfg.app.dataset}")
@@ -55,12 +55,17 @@ def test_text_encoder(cfg, n, device, experiments_root):
         transformer = create_sonar_model(device)
         embeddings_dataset = load_embeddings_dataset(path, device=device)
         reconstructed_text_path = ensure_directory(path / "reconstructed")
+        global_quantize_min = torch.min(
+            torch.cat([embeddings_dataset.train.data, embeddings_dataset.test.data], dim=0)
+        )
+        global_quantize_max = torch.max(
+            torch.cat([embeddings_dataset.train.data, embeddings_dataset.test.data], dim=0)
+        )
 
         total = len(embeddings_dataset.test.data)
-        limit = total if n == 0 else min(n, total)
 
-        original_texts = [str(text) for text in dataset.test.texts[:limit]]
-        test_embeddings = embeddings_dataset.test.data[:limit]
+        original_texts = [str(text) for text in dataset.test.texts[:total]]
+        test_embeddings = embeddings_dataset.test.data[:total]
 
         # Test embeddings without memory recall to evaluate the quality of the autoencoder independently
         samples, summary = text_reconstruction_metrics(
@@ -68,6 +73,7 @@ def test_text_encoder(cfg, n, device, experiments_root):
             device=device,
             original_texts=original_texts,
             embeddings=test_embeddings,
+            batch_size=64,
         )
 
         reconstructed_samples_path = reconstructed_text_path / "reconstructed.json"
@@ -87,6 +93,10 @@ def test_text_encoder(cfg, n, device, experiments_root):
                 indent=4,
                 ensure_ascii=False,
             )
+
+        # Recognition evaluation across memory domains
+
+        recognition_text_path = ensure_directory(path / "recognition")
 
         domains = (
             [int(domain) for domain in cfg.memory.domain]
@@ -125,9 +135,11 @@ def test_text_encoder(cfg, n, device, experiments_root):
                 eam = create_associative_memory(cfg, latent, domain)
 
                 # Fill with the first half of the training dataset
-                eam, min_value, max_value = memorize(
+                eam = memorize(
                     eam,
                     dataset=memory_wrapper.train,
+                    quantize_min=global_quantize_min,
+                    quantize_max=global_quantize_max,
                 )
 
                 # Evaluate recognition on the seen and unseen halves
@@ -136,8 +148,8 @@ def test_text_encoder(cfg, n, device, experiments_root):
                     seen_dataset=memory_wrapper.train,
                     unseen_dataset=memory_wrapper.test,
                     test_dataset=embeddings_dataset.test,
-                    min_value=min_value,
-                    max_value=max_value,
+                    quantize_min=global_quantize_min,
+                    quantize_max=global_quantize_max,
                 )
 
                 confusion_payload = {
@@ -156,7 +168,7 @@ def test_text_encoder(cfg, n, device, experiments_root):
                 confusion_summaries.append(confusion_payload)
 
                 confusion_path = (
-                    reconstructed_text_path / f"recognition_confusion_domain_{domain}.json"
+                    recognition_text_path / f"recognition_confusion_domain_{domain}.json"
                 )
                 with open(confusion_path, "w", encoding="utf-8") as f_out:
                     json.dump(
@@ -185,11 +197,11 @@ def test_text_encoder(cfg, n, device, experiments_root):
                     height=800,
                 )
                 fig.write_html(
-                    reconstructed_text_path
+                    recognition_text_path
                     / f"recognition_confusion_domain_{domain}.html"
                 )
                 fig.write_image(
-                    reconstructed_text_path
+                    recognition_text_path
                     / f"recognition_confusion_domain_{domain}.png"
                 )
 
@@ -200,12 +212,12 @@ def test_text_encoder(cfg, n, device, experiments_root):
                 )
                 click.echo(f"[INFO] Recognition confusion saved to: {confusion_path}")
                 click.echo(
-                    f"[INFO] Recognition confusion plot saved to: {reconstructed_text_path / f'recognition_confusion_domain_{domain}.html'}"
+                    f"[INFO] Recognition confusion plot saved to: {recognition_text_path / f'recognition_confusion_domain_{domain}.html'}"
                 )
                 domain_progress.update(domain_task, advance=1)
 
         confusion_summary_path = (
-            reconstructed_text_path / "recognition_confusion_summary.json"
+            recognition_text_path / "recognition_confusion_summary.json"
         )
         with open(confusion_summary_path, "w", encoding="utf-8") as f_out:
             json.dump(
@@ -304,8 +316,8 @@ def test_text_encoder(cfg, n, device, experiments_root):
             legend_title="Metric",
         )
 
-        rates_plot_path = reconstructed_text_path / "recognition_rates_by_domain.html"
-        rates_image_path = reconstructed_text_path / "recognition_rates_by_domain.png"
+        rates_plot_path = recognition_text_path / "recognition_rates_by_domain.html"
+        rates_image_path = recognition_text_path / "recognition_rates_by_domain.png"
         rates_fig.write_html(rates_plot_path)
         rates_fig.write_image(rates_image_path)
 
@@ -344,7 +356,7 @@ def get_text_embeddings(cfg, device, experiments_root):
         )
 
 
-def create_text_memories(cfg, n, device, experiments_root):
+def create_text_memories(cfg, n_saved, device, experiments_root):
     latent = int(get_scalar_config_value(cfg.neural.latent_dim))
     domain = int(get_scalar_config_value(cfg.memory.domain))
     filling_percent = float(get_scalar_config_value(cfg.memory.filling))
@@ -358,10 +370,19 @@ def create_text_memories(cfg, n, device, experiments_root):
         column=cfg.app.column,
     )
 
+    global_quantize_min = torch.min(
+        torch.cat([embeddings_dataset.train.data, embeddings_dataset.test.data], dim=0)
+    )
+    global_quantize_max = torch.max(
+        torch.cat([embeddings_dataset.train.data, embeddings_dataset.test.data], dim=0)
+    )
+
     eam = create_associative_memory(cfg, latent, domain)
-    eam, min_value, max_value = memorize(
+    eam = memorize(
         eam,
         dataset=embeddings_dataset.train,
+        quantize_max=global_quantize_max,
+        quantize_min=global_quantize_min,
         filling_percent=filling_percent,
     )
 
@@ -374,12 +395,11 @@ def create_text_memories(cfg, n, device, experiments_root):
     ) = evalm_text(
         eam,
         dataset=embeddings_dataset.test,
-        min_value=min_value,
-        max_value=max_value,
+        quantize_min=global_quantize_min,
+        quantize_max=global_quantize_max,
     )
 
     total = len(memories_features)
-    limit = total if n == 0 else min(n, total)
 
     transformer = create_sonar_model(device)
     output_path = ensure_directory(path / f"dim{domain}_memory_reconstructed")
@@ -405,7 +425,7 @@ def create_text_memories(cfg, n, device, experiments_root):
             else float(np.asarray(weights[original_index]).mean())
         )
 
-    saved_samples = samples if n == 0 else samples[:limit]
+    saved_samples = samples if n_saved == 0 else samples[:n_saved]
 
     reconstructed_samples_path = output_path / "reconstructed.json"
     with open(reconstructed_samples_path, "w", encoding="utf-8") as f_out:
@@ -570,6 +590,13 @@ def get_besttext_params(cfg, config, device, EXPERIMENTS_ROOT):
             column=cfg.app.column,
         )
 
+        quantize_min = torch.min(
+            torch.cat([embeddings_dataset.train.data, embeddings_dataset.test.data], dim=0)
+        )
+        quantize_max = torch.max(
+            torch.cat([embeddings_dataset.train.data, embeddings_dataset.test.data], dim=0)
+        )
+
         transformer = create_sonar_model(device)
 
         X = embeddings_dataset.train.data
@@ -601,9 +628,11 @@ def get_besttext_params(cfg, config, device, EXPERIMENTS_ROOT):
 
                     eam = create_associative_memory(cfg, latent, msize)
 
-                    eam, min_value, max_value = memorize(
+                    eam = memorize(
                         eam,
                         dataset=fold_train_wrapper.train,
+                        quantize_min=quantize_min,
+                        quantize_max=quantize_max,
                         filling_percent=filling_percent,
                     )
 
@@ -616,8 +645,8 @@ def get_besttext_params(cfg, config, device, EXPERIMENTS_ROOT):
                     ) = evalm_text(
                         eam,
                         dataset=fold_train_wrapper.test,
-                        min_value=min_value,
-                        max_value=max_value,
+                        quantize_min=quantize_min,
+                        quantize_max=quantize_max,
                     )
 
                     recognized_embeddings = memories_features[recognitions]
