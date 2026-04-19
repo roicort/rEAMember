@@ -363,7 +363,7 @@ def create_memories(config, n):
         with task_status("Creating image memories"):
             create_image_memories(
                 cfg,
-                n=n,
+                n_saved=n,
                 device=device,
                 experiments_root=EXPERIMENTS_ROOT,
             )
@@ -371,7 +371,7 @@ def create_memories(config, n):
         with task_status("Creating text memories"):
             create_text_memories(
                 cfg,
-                n=n,
+                n_saved=n,
                 device=device,
                 experiments_root=EXPERIMENTS_ROOT,
             )
