@@ -370,22 +370,20 @@ def create_text_memories(cfg, n_saved, device, experiments_root):
         column=cfg.app.column,
     )
 
-    global_quantize_min = torch.min(
-        torch.cat([embeddings_dataset.train.data, embeddings_dataset.test.data], dim=0)
-    )
-    global_quantize_max = torch.max(
-        torch.cat([embeddings_dataset.train.data, embeddings_dataset.test.data], dim=0)
-    )
+    all = torch.cat([embeddings_dataset.train.data, embeddings_dataset.test.data], dim=0)
+
+    global_quantize_min = torch.min(all)
+    global_quantize_max = torch.max(all)
 
     eam = create_associative_memory(cfg, latent, domain)
     eam = memorize(
         eam,
-        dataset=embeddings_dataset.train,
+        dataset=all,
         quantize_max=global_quantize_max,
         quantize_min=global_quantize_min,
         filling_percent=filling_percent,
     )
-
+    
     (
         memories_features,
         recognitions,
