@@ -26,14 +26,6 @@ class NumpyAssociativeMemory(object):
             The size of the domain (of properties).
         m : int
             The size of the range (of representation).
-        tolerance: int
-            The number of mismatches allowed between the
-            memory content and the cue.
-        sigma:
-            The standard deviation of the normal distribution
-            used in remembering, as percentage of the number of
-            characteristics. Default: None, in which case
-            half the number of characteristics is used.
         """
         def normpdf(x, mean, sd, scale = 1.0):
             var = float(sd)**2

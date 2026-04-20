@@ -3,6 +3,12 @@ import torch
 from tqdm import tqdm
 
 
+def _get_dataset_features(dataset):
+    if hasattr(dataset, "data"):
+        return dataset.data
+    return dataset
+
+
 def rsize_recall(recall, msize, min_value, max_value):
     if not torch.is_tensor(recall):
         min_value = min_value.item() if torch.is_tensor(min_value) else min_value
@@ -32,7 +38,8 @@ def memorize(eam, dataset, quantize_min, quantize_max, filling_percent=1.0):
     Create and fill memory registering features from the dataset.
     """
 
-    features_rounded = _quantize_features(dataset.data, eam, quantize_min, quantize_max)
+    features = _get_dataset_features(dataset)
+    features_rounded = _quantize_features(features, eam, quantize_min, quantize_max)
 
     if filling_percent < 1.0:
         n_features = int(len(features_rounded) * filling_percent)
@@ -52,13 +59,8 @@ def remember(cfg, eam, dataset, dequantize_min, dequantize_max):
     Remember features from the dataset.
     """
 
-    # from omegaconf import ListConfig
-
-    features = dataset.data
-
-    features_rounded = torch.round(
-        (features - dequantize_min) / (dequantize_max - dequantize_min) * (eam.m - 1)
-    ).to(torch.int16)
+    features = _get_dataset_features(dataset)
+    features_rounded = _quantize_features(features, eam, dequantize_min, dequantize_max)
 
     memories_features = []
     memories_recognition = []
@@ -84,16 +86,13 @@ def remember(cfg, eam, dataset, dequantize_min, dequantize_max):
     return memories_features, memories_recognition, memories_weights
 
 
-def evalm(eam, classifier, dataset):
+def evalm(eam, classifier, dataset, quantize_min, quantize_max):
     """
     Evaluate the memory on the dataset.
     """
 
-    features = dataset.data
-    dequantize_min = features.min()
-    dequantize_max = features.max()
-    
-    features_rounded = _quantize_features(features, eam, dequantize_min, dequantize_max)
+    features = _get_dataset_features(dataset)
+    features_rounded = _quantize_features(features, eam, quantize_min, quantize_max)
     labels = dataset.targets.cpu().numpy()
 
     print(
@@ -106,7 +105,7 @@ def evalm(eam, classifier, dataset):
         memory, recognized, weight = eam.recall(feature)
         if recognized:
             memory = memory.cpu().numpy() if torch.is_tensor(memory) else memory
-            memory = rsize_recall(memory, eam.m, dequantize_min, dequantize_max)
+            memory = rsize_recall(memory, eam.m, quantize_min, quantize_max)
             with torch.no_grad():
                 memory = (
                     torch.tensor(

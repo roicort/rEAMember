@@ -13,6 +13,7 @@ from reamember.utils import (
     decode_text_embeddings,
     load_embeddings_dataset,
     create_associative_memory,
+    _get_quantization_bounds,
 )
 
 from reamember.neuralnets.transformer import SONAR
@@ -55,11 +56,9 @@ def test_text_encoder(cfg, n_examples, device, experiments_root):
         transformer = create_sonar_model(device)
         embeddings_dataset = load_embeddings_dataset(path, device=device)
         reconstructed_text_path = ensure_directory(path / "reconstructed")
-        global_quantize_min = torch.min(
-            torch.cat([embeddings_dataset.train.data, embeddings_dataset.test.data], dim=0)
-        )
-        global_quantize_max = torch.max(
-            torch.cat([embeddings_dataset.train.data, embeddings_dataset.test.data], dim=0)
+        global_quantize_min, global_quantize_max = _get_quantization_bounds(
+            embeddings_dataset.train.data,
+            embeddings_dataset.test.data,
         )
 
         total = len(embeddings_dataset.test.data)
@@ -372,8 +371,9 @@ def create_text_memories(cfg, n_saved, device, experiments_root):
 
     all = torch.cat([embeddings_dataset.train.data, embeddings_dataset.test.data], dim=0)
 
-    global_quantize_min = torch.min(all)
-    global_quantize_max = torch.max(all)
+    global_quantize_min, global_quantize_max = _get_quantization_bounds(
+        all
+    )
 
     eam = create_associative_memory(cfg, latent, domain)
     eam = memorize(
@@ -618,6 +618,7 @@ def get_besttext_params(cfg, config, device, EXPERIMENTS_ROOT):
                 for train_idx, val_idx in kf.split(X):
                     X_train, X_val = X[train_idx], X[val_idx]
                     texts_val = texts[val_idx].tolist()
+                    quantize_min, quantize_max = _get_quantization_bounds(X_train, X_val)
 
                     fold_train_wrapper = EmbeddingDatasetWrapper(
                         train=torch.tensor(X_train, dtype=torch.float32),

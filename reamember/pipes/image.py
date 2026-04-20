@@ -28,6 +28,7 @@ from reamember.utils import (
 	get_experiment_path,
 	load_embeddings_dataset,
 	load_model_state,
+	_get_quantization_bounds,
 )
 
 
@@ -123,6 +124,7 @@ def get_bestimage_params(
 				for train_idx, val_idx in skf.split(x_values, y_values):
 					x_train, y_train = x_values[train_idx], y_values[train_idx]
 					x_val, y_val = x_values[val_idx], y_values[val_idx]
+					quantize_min, quantize_max = _get_quantization_bounds(x_train, x_val)
 
 					fold_train_wrapper = EmbeddingDatasetWrapper(
 						train=torch.tensor(x_train),
@@ -133,9 +135,11 @@ def get_bestimage_params(
 
 					eam = create_associative_memory(cfg, latent, msize)
 
-					eam, min_value, max_value = memorize(
+					eam = memorize(
 						eam,
 						dataset=fold_train_wrapper.train,
+						quantize_min=quantize_min,
+						quantize_max=quantize_max,
 						filling_percent=filling_percent,
 					)
 
@@ -143,8 +147,8 @@ def get_bestimage_params(
 						eam,
 						classifier=classifier,
 						dataset=fold_train_wrapper.test,
-						min_value=min_value,
-						max_value=max_value,
+						quantize_min=quantize_min,
+						quantize_max=quantize_max,
 					)
 
 					fold_metrics.append(
@@ -278,16 +282,25 @@ def create_image_memories(cfg, n, device, experiments_root):
 
 	input_shape = dataset.train[0][0].shape
 	click.echo(f"[INFO] Input shape: {input_shape}")
+	quantize_min, quantize_max = _get_quantization_bounds(
+		embeddings_dataset.train.data,
+		embeddings_dataset.test.data,
+	)
 
 	eam = create_associative_memory(cfg, latent, domain)
-	eam, min_value, max_value = memorize(eam, dataset=embeddings_dataset.train)
+	eam = memorize(
+		eam,
+		dataset=embeddings_dataset.train,
+		quantize_min=quantize_min,
+		quantize_max=quantize_max,
+	)
 
 	memories_features, memories_recognition, _ = remember(
 		cfg,
 		eam=eam,
 		dataset=embeddings_dataset.test,
-		min_value=min_value,
-		max_value=max_value,
+		dequantize_min=quantize_min,
+		dequantize_max=quantize_max,
 	)
 
 	click.echo("[INFO] Classifying memories...")

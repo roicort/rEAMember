@@ -211,3 +211,16 @@ def decode_text_embeddings(model, embeddings, device=None, batch_size=32):
             reconstructed_texts.extend(reconstructed_batch)
 
     return reconstructed_texts
+
+def _get_quantization_bounds(*feature_sets):
+    joined = []
+    for features in feature_sets:
+        if features is None:
+            continue
+        joined.append(torch.as_tensor(features, dtype=torch.float32))
+
+    if not joined:
+        raise ValueError("At least one feature set is required to compute quantization bounds")
+
+    all_features = torch.cat(joined, dim=0)
+    return torch.min(all_features), torch.max(all_features)
