@@ -25,6 +25,15 @@ def _iter_batches(values, batch_size=None):
         yield values[start : start + batch_size]
 
 
+def _batch_count(values, batch_size=None):
+    total = len(values)
+    if total == 0:
+        return 0
+    if batch_size is None or batch_size <= 0 or batch_size >= total:
+        return 1
+    return (total + batch_size - 1) // batch_size
+
+
 def rsize_recall(recall, msize, min_value, max_value):
     if not torch.is_tensor(recall):
         min_value = min_value.item() if torch.is_tensor(min_value) else min_value
@@ -67,7 +76,10 @@ def memorize(eam, dataset, quantize_min, quantize_max, filling_percent=1.0, batc
     )
 
     if callable(batch_register):
-        for batch in tqdm(_iter_batches(features_rounded, batch_size)):
+        for batch in tqdm(
+            _iter_batches(features_rounded, batch_size),
+            total=_batch_count(features_rounded, batch_size),
+        ):
             batch_register(_to_numpy(batch))
     else:
         for features in tqdm(features_rounded):
@@ -94,7 +106,10 @@ def remember(cfg, eam, dataset, dequantize_min, dequantize_max, batch_size=None)
         memories_recognition = []
         memories_weights = []
 
-        for batch in tqdm(_iter_batches(features_rounded, batch_size)):
+        for batch in tqdm(
+            _iter_batches(features_rounded, batch_size),
+            total=_batch_count(features_rounded, batch_size),
+        ):
             batch_memories, batch_recognition, batch_weights = batch_recall(
                 _to_numpy(batch)
             )
@@ -148,7 +163,10 @@ def evalm(eam, classifier, dataset, quantize_min, quantize_max, batch_size=None)
     if callable(batch_recall):
         answers = []
 
-        for batch in tqdm(_iter_batches(features_rounded, batch_size)):
+        for batch in tqdm(
+            _iter_batches(features_rounded, batch_size),
+            total=_batch_count(features_rounded, batch_size),
+        ):
             memories, recognized, _ = batch_recall(_to_numpy(batch))
             memories = _to_numpy(memories)
             recognized = _to_numpy(recognized).astype(bool)
@@ -259,7 +277,10 @@ def evalm_text(eam, dataset, quantize_min, quantize_max, batch_size=None):
         recognitions = []
         weights = []
 
-        for batch in tqdm(_iter_batches(features_rounded, batch_size)):
+        for batch in tqdm(
+            _iter_batches(features_rounded, batch_size),
+            total=_batch_count(features_rounded, batch_size),
+        ):
             batch_memories, batch_recognitions, batch_weights = batch_recall(
                 _to_numpy(batch)
             )
