@@ -9,6 +9,12 @@ def _get_dataset_features(dataset):
     return dataset
 
 
+def _to_numpy(value):
+    if torch.is_tensor(value):
+        return value.cpu().numpy()
+    return np.asarray(value)
+
+
 def rsize_recall(recall, msize, min_value, max_value):
     if not torch.is_tensor(recall):
         min_value = min_value.item() if torch.is_tensor(min_value) else min_value
@@ -37,6 +43,7 @@ def memorize(eam, dataset, quantize_min, quantize_max, filling_percent=1.0):
     """
     Create and fill memory registering features from the dataset.
     """
+    usebatch = hasattr(eam, "batch_register")
 
     features = _get_dataset_features(dataset)
     features_rounded = _quantize_features(features, eam, quantize_min, quantize_max)
@@ -48,9 +55,12 @@ def memorize(eam, dataset, quantize_min, quantize_max, filling_percent=1.0):
     print(
         f"[INFO] Memorizing {len(features_rounded)} features with shape {features_rounded.shape}..."
     )
-    for features in tqdm(features_rounded):
-        eam.register(features)
 
+    if usebatch:
+        eam.batch_register(_to_numpy(features_rounded))
+    else:
+        for features in tqdm(features_rounded):
+            eam.register(features)
     return eam
 
 
@@ -65,6 +75,18 @@ def remember(cfg, eam, dataset, dequantize_min, dequantize_max):
     memories_features = []
     memories_recognition = []
     memories_weights = []
+
+    if hasattr(eam, "batch_recall"):
+        memories_features, memories_recognition, memories_weights = eam.batch_recall(
+            _to_numpy(features_rounded)
+        )
+        memories_features = _to_numpy(memories_features).astype(float)
+        memories_features = rsize_recall(
+            memories_features, eam.m, dequantize_min, dequantize_max
+        )
+        memories_recognition = _to_numpy(memories_recognition).astype(int)
+        memories_weights = _to_numpy(memories_weights).astype(float)
+        return memories_features, memories_recognition, memories_weights
 
     for feature in tqdm(features_rounded):
         memory, recognized, weight = eam.recall(feature)
@@ -99,26 +121,47 @@ def evalm(eam, classifier, dataset, quantize_min, quantize_max):
         f"[INFO] Evaluating {len(features_rounded)} features with shape {features_rounded.shape}..."
     )
 
-    answers = []
+    if hasattr(eam, "batch_recall"):
+        memories, recognized, _ = eam.batch_recall(_to_numpy(features_rounded))
+        recognized = _to_numpy(recognized).astype(bool)
+        answers = np.full(len(recognized), None, dtype=object)
 
-    for feature in tqdm(features_rounded):
-        memory, recognized, weight = eam.recall(feature)
-        if recognized:
-            memory = memory.cpu().numpy() if torch.is_tensor(memory) else memory
-            memory = rsize_recall(memory, eam.m, quantize_min, quantize_max)
+        if np.any(recognized):
+            recognized_memories = rsize_recall(
+                _to_numpy(memories)[recognized].astype(float),
+                eam.m,
+                quantize_min,
+                quantize_max,
+            )
             with torch.no_grad():
-                memory = (
-                    torch.tensor(
-                        memory, dtype=torch.float32, device=classifier.device
-                    ).unsqueeze(0)
-                    if not isinstance(memory, torch.Tensor)
-                    else memory.unsqueeze(0)
+                batch = torch.as_tensor(
+                    recognized_memories,
+                    dtype=torch.float32,
+                    device=classifier.device,
                 )
-                prediction = classifier.predict(memory).cpu().numpy()[0]
-        else:
-            prediction = None  # No prediction if not recognized
+                predictions = classifier.predict(batch).cpu().numpy()
+            answers[recognized] = predictions.tolist()
+    else:
+        answers = []
 
-        answers.append(prediction)
+        for feature in tqdm(features_rounded):
+            memory, recognized, weight = eam.recall(feature)
+            if recognized:
+                memory = memory.cpu().numpy() if torch.is_tensor(memory) else memory
+                memory = rsize_recall(memory, eam.m, quantize_min, quantize_max)
+                with torch.no_grad():
+                    memory = (
+                        torch.tensor(
+                            memory, dtype=torch.float32, device=classifier.device
+                        ).unsqueeze(0)
+                        if not isinstance(memory, torch.Tensor)
+                        else memory.unsqueeze(0)
+                    )
+                    prediction = classifier.predict(memory).cpu().numpy()[0]
+            else:
+                prediction = None
+
+            answers.append(prediction)
 
     # Results
 
@@ -176,6 +219,30 @@ def evalm_text(eam, dataset, quantize_min, quantize_max):
     memories_features = []
     recognitions = []
     weights = []
+
+    if hasattr(eam, "batch_recall"):
+        memories_features, recognitions, weights = eam.batch_recall(
+            _to_numpy(features_rounded)
+        )
+        memories_features = _to_numpy(memories_features).astype(float)
+        memories_features = rsize_recall(
+            memories_features, eam.m, quantize_min, quantize_max
+        )
+        recognitions = _to_numpy(recognitions).astype(bool)
+        weights = _to_numpy(weights).astype(float)
+
+        recognized_count = np.sum(recognitions)
+        total = len(recognitions)
+        recognized_percentage = recognized_count / total if total > 0 else 0.0
+        unrecognized_percentage = 1.0 - recognized_percentage if total > 0 else 0.0
+
+        return (
+            memories_features,
+            recognitions,
+            weights,
+            recognized_percentage,
+            unrecognized_percentage,
+        )
 
     for feature in tqdm(features_rounded):
         memory, recognized, weight = eam.recall(feature)
