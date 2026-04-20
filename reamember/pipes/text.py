@@ -112,6 +112,7 @@ def test_text_encoder(cfg, n_examples, device, experiments_root):
                     dataset=memory_wrapper.train,
                     quantize_min=global_quantize_min,
                     quantize_max=global_quantize_max,
+                    batch_size=cfg.memory.batch_size,
                 )
 
                 # Evaluate recognition on the seen and unseen halves
@@ -122,6 +123,7 @@ def test_text_encoder(cfg, n_examples, device, experiments_root):
                     test_dataset=embeddings_dataset.test,
                     quantize_min=global_quantize_min,
                     quantize_max=global_quantize_max,
+                    batch_size=cfg.memory.batch_size,
                 )
 
                 confusion_payload = {
@@ -382,6 +384,7 @@ def create_text_memories(cfg, n_saved, device, experiments_root):
         quantize_max=global_quantize_max,
         quantize_min=global_quantize_min,
         filling_percent=filling_percent,
+        batch_size=cfg.memory.batch_size,
     )
     
     (
@@ -395,6 +398,7 @@ def create_text_memories(cfg, n_saved, device, experiments_root):
         dataset=embeddings_dataset.test,
         quantize_min=global_quantize_min,
         quantize_max=global_quantize_max,
+        batch_size=cfg.memory.batch_size,
     )
 
     total = len(memories_features)
@@ -633,6 +637,7 @@ def get_besttext_params(cfg, config, device, EXPERIMENTS_ROOT):
                         quantize_min=quantize_min,
                         quantize_max=quantize_max,
                         filling_percent=filling_percent,
+                        batch_size=cfg.memory.batch_size,
                     )
 
                     (
@@ -646,6 +651,7 @@ def get_besttext_params(cfg, config, device, EXPERIMENTS_ROOT):
                         dataset=fold_train_wrapper.test,
                         quantize_min=quantize_min,
                         quantize_max=quantize_max,
+                        batch_size=cfg.memory.batch_size,
                     )
 
                     recognized_embeddings = memories_features[recognitions]

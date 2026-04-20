@@ -15,6 +15,16 @@ def _to_numpy(value):
     return np.asarray(value)
 
 
+def _iter_batches(values, batch_size=None):
+    total = len(values)
+    if batch_size is None or batch_size <= 0 or batch_size >= total:
+        yield values
+        return
+
+    for start in range(0, total, batch_size):
+        yield values[start : start + batch_size]
+
+
 def rsize_recall(recall, msize, min_value, max_value):
     if not torch.is_tensor(recall):
         min_value = min_value.item() if torch.is_tensor(min_value) else min_value
@@ -39,11 +49,11 @@ def _quantize_features(features, eam, min_value, max_value):
     return torch.round((features - min_value) / scale * (eam.m - 1)).to(torch.int16)
 
 
-def memorize(eam, dataset, quantize_min, quantize_max, filling_percent=1.0):
+def memorize(eam, dataset, quantize_min, quantize_max, filling_percent=1.0, batch_size=None):
     """
     Create and fill memory registering features from the dataset.
     """
-    usebatch = hasattr(eam, "batch_register")
+    batch_register = getattr(eam, "batch_register", None)
 
     features = _get_dataset_features(dataset)
     features_rounded = _quantize_features(features, eam, quantize_min, quantize_max)
@@ -56,15 +66,16 @@ def memorize(eam, dataset, quantize_min, quantize_max, filling_percent=1.0):
         f"[INFO] Memorizing {len(features_rounded)} features with shape {features_rounded.shape}..."
     )
 
-    if usebatch:
-        eam.batch_register(_to_numpy(features_rounded))
+    if callable(batch_register):
+        for batch in tqdm(_iter_batches(features_rounded, batch_size)):
+            batch_register(_to_numpy(batch))
     else:
         for features in tqdm(features_rounded):
             eam.register(features)
     return eam
 
 
-def remember(cfg, eam, dataset, dequantize_min, dequantize_max):
+def remember(cfg, eam, dataset, dequantize_min, dequantize_max, batch_size=None):
     """
     Remember features from the dataset.
     """
@@ -76,16 +87,27 @@ def remember(cfg, eam, dataset, dequantize_min, dequantize_max):
     memories_recognition = []
     memories_weights = []
 
-    if hasattr(eam, "batch_recall"):
-        memories_features, memories_recognition, memories_weights = eam.batch_recall(
-            _to_numpy(features_rounded)
-        )
-        memories_features = _to_numpy(memories_features).astype(float)
+    batch_recall = getattr(eam, "batch_recall", None)
+
+    if callable(batch_recall):
+        memories_features = []
+        memories_recognition = []
+        memories_weights = []
+
+        for batch in tqdm(_iter_batches(features_rounded, batch_size)):
+            batch_memories, batch_recognition, batch_weights = batch_recall(
+                _to_numpy(batch)
+            )
+            memories_features.append(_to_numpy(batch_memories))
+            memories_recognition.append(_to_numpy(batch_recognition))
+            memories_weights.append(_to_numpy(batch_weights))
+
+        memories_features = np.concatenate(memories_features, axis=0).astype(float)
         memories_features = rsize_recall(
             memories_features, eam.m, dequantize_min, dequantize_max
         )
-        memories_recognition = _to_numpy(memories_recognition).astype(int)
-        memories_weights = _to_numpy(memories_weights).astype(float)
+        memories_recognition = np.concatenate(memories_recognition, axis=0).astype(int)
+        memories_weights = np.concatenate(memories_weights, axis=0).astype(float)
         return memories_features, memories_recognition, memories_weights
 
     for feature in tqdm(features_rounded):
@@ -108,7 +130,7 @@ def remember(cfg, eam, dataset, dequantize_min, dequantize_max):
     return memories_features, memories_recognition, memories_weights
 
 
-def evalm(eam, classifier, dataset, quantize_min, quantize_max):
+def evalm(eam, classifier, dataset, quantize_min, quantize_max, batch_size=None):
     """
     Evaluate the memory on the dataset.
     """
@@ -121,26 +143,36 @@ def evalm(eam, classifier, dataset, quantize_min, quantize_max):
         f"[INFO] Evaluating {len(features_rounded)} features with shape {features_rounded.shape}..."
     )
 
-    if hasattr(eam, "batch_recall"):
-        memories, recognized, _ = eam.batch_recall(_to_numpy(features_rounded))
-        recognized = _to_numpy(recognized).astype(bool)
-        answers = np.full(len(recognized), None, dtype=object)
+    batch_recall = getattr(eam, "batch_recall", None)
 
-        if np.any(recognized):
-            recognized_memories = rsize_recall(
-                _to_numpy(memories)[recognized].astype(float),
-                eam.m,
-                quantize_min,
-                quantize_max,
-            )
-            with torch.no_grad():
-                batch = torch.as_tensor(
-                    recognized_memories,
-                    dtype=torch.float32,
-                    device=classifier.device,
+    if callable(batch_recall):
+        answers = []
+
+        for batch in tqdm(_iter_batches(features_rounded, batch_size)):
+            memories, recognized, _ = batch_recall(_to_numpy(batch))
+            memories = _to_numpy(memories)
+            recognized = _to_numpy(recognized).astype(bool)
+            batch_answers = np.full(len(recognized), None, dtype=object)
+
+            if np.any(recognized):
+                recognized_memories = rsize_recall(
+                    memories[recognized].astype(float),
+                    eam.m,
+                    quantize_min,
+                    quantize_max,
                 )
-                predictions = classifier.predict(batch).cpu().numpy()
-            answers[recognized] = predictions.tolist()
+                with torch.no_grad():
+                    prediction_batch = torch.as_tensor(
+                        recognized_memories,
+                        dtype=torch.float32,
+                        device=classifier.device,
+                    )
+                    predictions = classifier.predict(prediction_batch).cpu().numpy()
+                batch_answers[recognized] = predictions.tolist()
+
+            answers.append(batch_answers)
+
+        answers = np.concatenate(answers, axis=0)
     else:
         answers = []
 
@@ -205,7 +237,7 @@ def evalm(eam, classifier, dataset, quantize_min, quantize_max):
     )
 
 
-def evalm_text(eam, dataset, quantize_min, quantize_max):
+def evalm_text(eam, dataset, quantize_min, quantize_max, batch_size=None):
     """
     Evaluate the memory on a text-embedding dataset.
     """
@@ -220,16 +252,27 @@ def evalm_text(eam, dataset, quantize_min, quantize_max):
     recognitions = []
     weights = []
 
-    if hasattr(eam, "batch_recall"):
-        memories_features, recognitions, weights = eam.batch_recall(
-            _to_numpy(features_rounded)
-        )
-        memories_features = _to_numpy(memories_features).astype(float)
+    batch_recall = getattr(eam, "batch_recall", None)
+
+    if callable(batch_recall):
+        memories_features = []
+        recognitions = []
+        weights = []
+
+        for batch in tqdm(_iter_batches(features_rounded, batch_size)):
+            batch_memories, batch_recognitions, batch_weights = batch_recall(
+                _to_numpy(batch)
+            )
+            memories_features.append(_to_numpy(batch_memories))
+            recognitions.append(_to_numpy(batch_recognitions))
+            weights.append(_to_numpy(batch_weights))
+
+        memories_features = np.concatenate(memories_features, axis=0).astype(float)
         memories_features = rsize_recall(
             memories_features, eam.m, quantize_min, quantize_max
         )
-        recognitions = _to_numpy(recognitions).astype(bool)
-        weights = _to_numpy(weights).astype(float)
+        recognitions = np.concatenate(recognitions, axis=0).astype(bool)
+        weights = np.concatenate(weights, axis=0).astype(float)
 
         recognized_count = np.sum(recognitions)
         total = len(recognitions)
@@ -274,6 +317,7 @@ def evalm_text_confusion(
     quantize_min,
     quantize_max,
     test_dataset=None,
+    batch_size=None,
 ):
     """
     Build a binary confusion matrix for text memory recognition.
@@ -285,11 +329,11 @@ def evalm_text_confusion(
 
     # Evaluate on both seen and unseen datasets
     _, seen_recognitions, seen_weights, seen_recognized, seen_unrecognized = evalm_text(
-        eam, seen_dataset, quantize_min, quantize_max
+        eam, seen_dataset, quantize_min, quantize_max, batch_size=batch_size
     )
     # Evaluate on the unseen dataset
     _, unseen_recognitions, unseen_weights, unseen_recognized, unseen_unrecognized = evalm_text(
-        eam, unseen_dataset, quantize_min, quantize_max
+        eam, unseen_dataset, quantize_min, quantize_max, batch_size=batch_size
     )
 
     row_labels = ["seen", "unseen"]
@@ -318,7 +362,7 @@ def evalm_text_confusion(
 
     if test_dataset is not None:
         _, test_recognitions, _, test_recognized, test_unrecognized = evalm_text(
-            eam, test_dataset, quantize_min, quantize_max
+            eam, test_dataset, quantize_min, quantize_max, batch_size=batch_size
         )
         test_total = len(test_recognitions)
         row_labels.append("test")

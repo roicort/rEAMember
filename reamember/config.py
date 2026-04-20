@@ -42,6 +42,7 @@ class NeuralConfig:
 class MemoryConfig:
     noise_level: float | None = 0.0
     domain: list[int] = field(default_factory=list)
+    batch_size: int | None = None
     filling: list[float] = field(default_factory=list)
     iota: float = 0.0
     kappa: float = 0.0
@@ -99,6 +100,8 @@ def _validate_runtime_config(cfg: DictConfig) -> None:
         raise ValueError("app.crossval.seed must be greater than or equal to 0")
     if cfg.memory.noise_level is not None and cfg.memory.noise_level < 0:
         raise ValueError("memory.noise_level must be greater than or equal to 0")
+    if cfg.memory.batch_size is not None and cfg.memory.batch_size <= 0:
+        raise ValueError("memory.batch_size must be a positive integer when provided")
     if cfg.memory.sigma < 0:
         raise ValueError("memory.sigma must be greater than or equal to 0")
     if cfg.memory.m is not None and cfg.memory.m <= 0:

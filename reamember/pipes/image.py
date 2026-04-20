@@ -141,6 +141,7 @@ def get_bestimage_params(
 						quantize_min=quantize_min,
 						quantize_max=quantize_max,
 						filling_percent=filling_percent,
+						batch_size=cfg.memory.batch_size,
 					)
 
 					percentages, recall, precision = evalm(
@@ -149,6 +150,7 @@ def get_bestimage_params(
 						dataset=fold_train_wrapper.test,
 						quantize_min=quantize_min,
 						quantize_max=quantize_max,
+						batch_size=cfg.memory.batch_size,
 					)
 
 					fold_metrics.append(
@@ -293,6 +295,7 @@ def create_image_memories(cfg, n, device, experiments_root):
 		dataset=embeddings_dataset.train,
 		quantize_min=quantize_min,
 		quantize_max=quantize_max,
+		batch_size=cfg.memory.batch_size,
 	)
 
 	memories_features, memories_recognition, _ = remember(
@@ -301,6 +304,7 @@ def create_image_memories(cfg, n, device, experiments_root):
 		dataset=embeddings_dataset.test,
 		dequantize_min=quantize_min,
 		dequantize_max=quantize_max,
+		batch_size=cfg.memory.batch_size,
 	)
 
 	click.echo("[INFO] Classifying memories...")
