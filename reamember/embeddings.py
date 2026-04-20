@@ -78,6 +78,8 @@ def get_embeddings(
             dataset.test, batch_size=batch_size, shuffle=False, num_workers=num_workers
         )
 
+        print(f"[INFO] Not found embeddings at: {save_path}, extracting...")
+
         if modality == "text":
             model.eval()
             if device is not None:
