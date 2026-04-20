@@ -66,33 +66,6 @@ def test_text_encoder(cfg, n_examples, device, experiments_root):
         original_texts = [str(text) for text in dataset.test.texts[:total]]
         test_embeddings = embeddings_dataset.test.data[:total]
 
-        # Test embeddings without memory recall to evaluate the quality of the autoencoder independently
-        samples, summary = text_reconstruction_metrics(
-            model=transformer,
-            device=device,
-            original_texts=original_texts,
-            embeddings=test_embeddings,
-            batch_size=64,
-        )
-
-        reconstructed_samples_path = reconstructed_text_path / "reconstructed.json"
-        with open(reconstructed_samples_path, "w", encoding="utf-8") as f_out:
-            json.dump(samples, f_out, indent=4, ensure_ascii=False)
-
-        metrics_path = reconstructed_text_path / "metrics.json"
-        with open(metrics_path, "w", encoding="utf-8") as f_out:
-            json.dump(
-                {
-                    "dataset": cfg.app.dataset,
-                    "latent_dim": int(latent),
-                    "summary": summary,
-                    "samples": samples,
-                },
-                f_out,
-                indent=4,
-                ensure_ascii=False,
-            )
-
         # Recognition evaluation across memory domains
 
         recognition_text_path = ensure_directory(path / "recognition")
@@ -319,6 +292,33 @@ def test_text_encoder(cfg, n_examples, device, experiments_root):
         rates_image_path = recognition_text_path / "recognition_rates_by_domain.png"
         rates_fig.write_html(rates_plot_path)
         rates_fig.write_image(rates_image_path)
+
+        # Test embeddings without memory recall to evaluate the quality of the autoencoder independently
+        samples, summary = text_reconstruction_metrics(
+            model=transformer,
+            device=device,
+            original_texts=original_texts,
+            embeddings=test_embeddings,
+            batch_size=64,
+        )
+
+        reconstructed_samples_path = reconstructed_text_path / "reconstructed.json"
+        with open(reconstructed_samples_path, "w", encoding="utf-8") as f_out:
+            json.dump(samples, f_out, indent=4, ensure_ascii=False)
+
+        metrics_path = reconstructed_text_path / "metrics.json"
+        with open(metrics_path, "w", encoding="utf-8") as f_out:
+            json.dump(
+                {
+                    "dataset": cfg.app.dataset,
+                    "latent_dim": int(latent),
+                    "summary": summary,
+                    "samples": samples,
+                },
+                f_out,
+                indent=4,
+                ensure_ascii=False,
+            )
 
         click.echo(
             f"[INFO] Reconstruction metrics | cosine: {summary['mean_cosine']:.4f} "
