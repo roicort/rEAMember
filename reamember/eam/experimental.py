@@ -1,7 +1,19 @@
 import torch
-import math
-import numpy as np
-import random
+
+
+def _gaussian_bank(m: int, sigma_scaled: float, device: torch.device) -> torch.Tensor:
+    if sigma_scaled == 0:
+        bank = torch.zeros((m + 1, m), dtype=torch.float32, device=device)
+        bank[torch.arange(m, device=device), torch.arange(m, device=device)] = 1.0
+        bank[m, :] = 1.0
+        return bank
+
+    v_indices = torch.arange(m + 1, device=device, dtype=torch.float32).unsqueeze(1)
+    j_indices = torch.arange(m, device=device, dtype=torch.float32).unsqueeze(0)
+    dist_sq = (j_indices - v_indices) ** 2
+    bank = torch.exp(-dist_sq / (2 * sigma_scaled**2))
+    bank[m, :] = 1.0
+    return bank
 
 class TorchAssociativeMemory(torch.nn.Module):
     """
@@ -28,41 +40,53 @@ class TorchAssociativeMemory(torch.nn.Module):
         super().__init__()
         self._n = n
         self._m = m + 1
-        self._t = xi
-        self._absolute_max = 1023
-        self._sigma = sigma * m
+        self._xi = xi
+        self._absolute_max = 2**16 - 1
+        self._sigma = sigma
+        self._sigma_scaled = sigma * m
         self._iota = iota
         self._kappa = kappa
-        self.device = device
+        self.device = device or torch.device("cpu")
 
-        def normpdf(x, mean, sd, scale=1.0):
-            eps = 1e-8
-            x = torch.as_tensor(x, dtype=torch.float32, device=self.device)
-            mean = torch.as_tensor(mean, dtype=torch.float32, device=self.device)
-            sd = torch.as_tensor(sd, dtype=torch.float32, device=self.device)
-            scale = torch.as_tensor(scale, dtype=torch.float32, device=self.device)
-            var = sd**2 + eps
-            denom = torch.sqrt(torch.tensor(2.0, device=self.device) * torch.pi * var)
-            num = torch.exp(-((x - mean) ** 2) / (2 * var))
-            return num / (scale * denom)
-
-        self.normpdf = normpdf
-
-        self._scale = self.normpdf(0, 0, self._sigma)
+        self._scale = 1.0
         self._relation = torch.zeros(
-            (self._m, self._n), dtype=torch.float32, device=self.device
+            (self._n, self._m), dtype=torch.float32, device=self.device
         )
         self._entropies = torch.zeros(self._n, dtype=torch.float32, device=self.device)
         self._means = torch.zeros(self._n, dtype=torch.float32, device=self.device)
         self._iota_relation = torch.zeros(
-            (self._m, self._n), dtype=torch.float32, device=self.device
+            (self._n, self._m), dtype=torch.float32, device=self.device
         )
-        self._kernel_cache = None
-        self._updated = True  # A flag to know whether iota-relation, entropies and means are up to date.
-        self._update_kernel_cache()
+        self._gauss_bank = None
+        self._updated = self.update()
 
     def __str__(self):
-        return str(self._relation)
+        return str(self.relation)
+
+    @classmethod
+    def from_relation(
+        cls,
+        relation,
+        xi=0,
+        sigma=0.1,
+        iota=0,
+        kappa=0,
+        device=None,
+    ):
+        relation = torch.as_tensor(relation, dtype=torch.float32, device=device)
+        n, m = relation.shape
+        memory = cls(
+            n=n,
+            m=m,
+            xi=xi,
+            sigma=sigma,
+            iota=iota,
+            kappa=kappa,
+            device=device,
+        )
+        memory._relation[:, :m] = relation
+        memory._updated = memory.update()
+        return memory
 
     @property
     def n(self):
@@ -74,7 +98,7 @@ class TorchAssociativeMemory(torch.nn.Module):
 
     @property
     def relation(self):
-        return self._relation[: self.m, :]
+        return self._relation[:, : self.m]
 
     @property
     def absolute_max_value(self):
@@ -106,7 +130,7 @@ class TorchAssociativeMemory(torch.nn.Module):
         """Return the iota-moderated relation."""
         if not self._updated:
             self._updated = self.update()
-        return self._iota_relation[: self.m, :]
+        return self._iota_relation[:, : self.m]
 
     @property
     def max_value(self):
@@ -119,13 +143,15 @@ class TorchAssociativeMemory(torch.nn.Module):
 
     @property
     def sigma(self):
-        return self._sigma / self.m
+        return self._sigma
 
     @sigma.setter
     def sigma(self, s):
-        self._sigma = abs(s * self.m)
-        self._scale = self.normpdf(0, 0, self._sigma)
-        self._update_kernel_cache()
+        if s < 0:
+            raise ValueError("Sigma must be a non negative number.")
+        self._sigma = s
+        self._sigma_scaled = abs(s * self.m)
+        self._gauss_bank = None
 
     @property
     def kappa(self):
@@ -148,34 +174,48 @@ class TorchAssociativeMemory(torch.nn.Module):
         self._iota = i
         self._updated = False
 
+    @property
+    def xi(self):
+        return self._xi
+
+    @xi.setter
+    def xi(self, x):
+        if (x < 0) or (x > self.n):
+            raise ValueError("Xi must be a non negative number.")
+        self._xi = x
+        self._updated = False
+
     def _update_entropies(self):
         """
         Update the entropies of the relation.
         """
-        totals = self.relation.sum(dim=0)
+        totals = self.relation.sum(dim=1)
         totals = torch.where(totals == 0, torch.tensor(1.0, device=self.device), totals)
-        matrix = self.relation / totals
+        matrix = self.relation / totals.unsqueeze(1)
         matrix = -matrix * torch.log2(
             torch.where(matrix == 0.0, torch.tensor(1.0, device=self.device), matrix)
         )
-        self._entropies = matrix.sum(dim=0)
+        self._entropies = matrix.sum(dim=1)
 
     def _update_means(self):
-        sums = torch.sum(self.relation, dim=0, dtype=torch.float32)
-        counts = torch.count_nonzero(self.relation, dim=0)
+        sums = torch.sum(self.relation, dim=1, dtype=torch.float32)
+        counts = torch.count_nonzero(self.relation, dim=1)
         counts = torch.where(counts == 0, torch.tensor(1.0, device=self.device), counts)
-        self._means = (sums / counts) / self.max_value
+        self._means = sums / counts
 
     def _update_iota_relation(self):
         """
         Update the iota-moderated relation.
         """
-        columns = self._relation
-        sums = columns.sum(dim=0)
-        counts = torch.count_nonzero(columns, dim=0)
-        means = torch.where(counts == 0, 0, self.iota * sums / counts)
-        mask = columns < means.unsqueeze(0)
-        self._iota_relation = torch.where(mask, torch.zeros_like(columns), columns)
+        sums = self._relation.sum(dim=1, keepdim=True)
+        counts = torch.count_nonzero(self._relation, dim=1).reshape(-1, 1)
+        counts = torch.where(counts == 0, torch.tensor(1, device=self.device), counts)
+        thresholds = self.iota * sums / counts
+        self._iota_relation = torch.where(
+            self._relation < thresholds,
+            torch.zeros_like(self._relation),
+            self._relation,
+        )
 
     def is_undefined(self, value):
         return value == self.undefined
@@ -186,49 +226,29 @@ class TorchAssociativeMemory(torch.nn.Module):
         self._update_iota_relation()
         return True
 
-    def _update_kernel_cache(self):
-        row_indices = torch.arange(self.m, device=self.device, dtype=torch.float32).unsqueeze(1)
-        means = torch.arange(self.m, device=self.device, dtype=torch.float32).unsqueeze(0)
-        kernel = self.normpdf(row_indices, means, self._sigma, self._scale)
-        undefined_kernel = torch.ones((self.m, 1), dtype=torch.float32, device=self.device)
-        self._kernel_cache = torch.cat([kernel, undefined_kernel], dim=1)
+    def _get_gauss_bank(self):
+        if self._gauss_bank is None:
+            self._gauss_bank = _gaussian_bank(self.m, self._sigma_scaled, self.device)
+        return self._gauss_bank
 
     def validate_batch(self, vectors):
-        if torch.is_tensor(vectors):
-            vectors = vectors.to(device=self.device)
-            if vectors.ndim == 1:
-                vectors = vectors.unsqueeze(0)
-            if vectors.ndim != 2 or vectors.size(1) != self.n:
-                raise ValueError(
-                    f"Invalid shape of the input data. Expected [batch, {self.n}] and given {tuple(vectors.shape)}"
-                )
-            if torch.is_floating_point(vectors):
-                vectors = torch.nan_to_num(vectors, nan=float(self.undefined))
-                vectors = torch.where(
-                    (vectors > self.m) | (vectors < 0),
-                    torch.full_like(vectors, float(self.undefined)),
-                    vectors,
-                )
-                return vectors.to(torch.int16)
-
-            undefined_fill = torch.full_like(vectors, self.undefined)
-            vectors = torch.where((vectors > self.m) | (vectors < 0), undefined_fill, vectors)
-            return vectors.to(torch.int16)
-
-        vectors = torch.as_tensor(vectors, dtype=torch.float32, device=self.device)
+        vectors = vectors.to(device=self.device) if torch.is_tensor(vectors) else torch.as_tensor(vectors, device=self.device)
         if vectors.ndim == 1:
             vectors = vectors.unsqueeze(0)
         if vectors.ndim != 2 or vectors.size(1) != self.n:
             raise ValueError(
                 f"Invalid shape of the input data. Expected [batch, {self.n}] and given {tuple(vectors.shape)}"
             )
-        vectors = torch.nan_to_num(vectors, nan=float(self.undefined))
-        vectors = torch.where(
-            (vectors > self.m) | (vectors < 0),
-            torch.full_like(vectors, float(self.undefined)),
-            vectors,
-        )
-        return vectors.to(torch.int16)
+
+        if torch.is_floating_point(vectors):
+            vectors = torch.clamp(vectors, 0, self.m - 1)
+            vectors = torch.nan_to_num(vectors, nan=float(self.undefined))
+        else:
+            vectors = torch.clamp(vectors, 0, self.m - 1)
+        return vectors.to(torch.long)
+
+    def batch_validate(self, vectors):
+        return self.validate_batch(vectors)
 
     def vector_to_relation(self, vector):
         """
@@ -242,71 +262,60 @@ class TorchAssociativeMemory(torch.nn.Module):
         torch.Tensor
             A 2D tensor of shape [m, n] representing the relation.
         """
-        return self.vectors_to_relation(self.validate_batch(vector)).squeeze(0)
+        vector = self.validate(vector)
+        relation = torch.zeros((self._n, self._m), dtype=torch.bool, device=self.device)
+        relation[torch.arange(self.n, device=self.device), vector] = True
+        return relation
 
     def vectors_to_relation(self, vectors):
         vectors = self.validate_batch(vectors).to(dtype=torch.long)
         batch_size = vectors.size(0)
         relation = torch.zeros(
-            (batch_size, self._m, self._n), dtype=torch.bool, device=self.device
+            (batch_size, self._n, self._m), dtype=torch.bool, device=self.device
         )
         batch_idx = torch.arange(batch_size, device=self.device).unsqueeze(1)
-        column_idx = torch.arange(self.n, device=self.device).unsqueeze(0)
-        relation[batch_idx, vectors, column_idx] = True
+        feature_idx = torch.arange(self.n, device=self.device).unsqueeze(0)
+        relation[batch_idx, feature_idx, vectors] = True
         return relation
 
-    def _normalize(self, columns, means, std, scale):
-        row_indices = torch.arange(self.m, device=self.device).unsqueeze(1) # Crear un vector columna de índices: [m, 1]
-        norm_weights = self.normpdf(row_indices, means, std, scale) # Calcular los pesos para todas las columnas a la vez usando broadcasting
-        return norm_weights * columns # Multiplicar todas las columnas por sus respectivos pesos a la vez
+    def _normalize(self, column, mean, std, scale):
+        bank = _gaussian_bank(self.m, float(std), self.device)[: self.m, : self.m]
+        mean_idx = int(mean.item()) if torch.is_tensor(mean) else int(mean)
+        return bank[mean_idx] * column
 
     def normalized(self, j, v):
-        column = self.relation[:, j].float().unsqueeze(1)
-        mean = torch.as_tensor([v], dtype=torch.float32, device=self.device)
-        return self._normalize(column, mean, self._sigma, self._scale).squeeze(1)
-
-    def _kernel_values(self, vectors):
-        if not torch.is_tensor(vectors):
-            vectors = torch.as_tensor(vectors, device=self.device)
-        else:
-            vectors = vectors.to(device=self.device)
-        if vectors.ndim == 1:
-            vectors = vectors.unsqueeze(0)
-        vectors = vectors.to(dtype=torch.long)
-        kernels = self._kernel_cache[:, vectors]
-        return kernels.permute(1, 0, 2)
+        return self._normalize(self.relation[j], v, self._sigma_scaled, self._scale)
 
     def _weights(self, vector):
-        # Vector debe estar en el dispositivo correcto y ser tipo long
         vector = torch.as_tensor(vector, dtype=torch.long, device=self.device)
-        # Creamos una máscara para los valores definidos
-        mask = (vector != self.undefined)
-        # Inicializamos los pesos en cero
-        weights = torch.zeros(self.n, dtype=self._relation.dtype, device=self.device)
-        # Solo asignamos los pesos donde el valor no es undefined
-        idx = torch.arange(self.n, device=self.device)
-        weights[mask] = self._relation[vector[mask], idx[mask]]
+        mask = vector != self.undefined
+        weights = torch.zeros(self.n, dtype=torch.float32, device=self.device)
+        row_idx = torch.arange(self.n, device=self.device)
+        weights[mask] = self.relation[row_idx[mask], vector[mask]].float()
         return weights
 
     def _weight(self, vector):
-        return torch.mean(self._weights(vector).float()) / self.max_value
+        return torch.mean(self._weights(vector))
 
     def _weights_batch(self, vectors):
-        vectors = self.validate_batch(vectors).to(dtype=torch.long)
+        vectors = torch.as_tensor(vectors, dtype=torch.long, device=self.device)
+        if vectors.ndim == 1:
+            vectors = vectors.unsqueeze(0)
         mask = vectors != self.undefined
-        column_idx = torch.arange(self.n, device=self.device).unsqueeze(0)
-        weights = self._relation[vectors, column_idx]
-        return torch.where(mask, weights, torch.zeros_like(weights))
+        safe_vectors = torch.where(mask, vectors, torch.zeros_like(vectors))
+        feature_idx = torch.arange(self.n, device=self.device).unsqueeze(0)
+        weights = self.relation[feature_idx, safe_vectors]
+        return torch.where(mask, weights, torch.zeros_like(weights, dtype=torch.float32))
 
     def _weight_batch(self, vectors):
-        return torch.mean(self._weights_batch(vectors).float(), dim=1) / self.max_value
+        return torch.mean(self._weights_batch(vectors).float(), dim=1)
 
     def _gather_iota_values(self, vectors):
         vectors = self.validate_batch(vectors).to(dtype=torch.long)
         defined_mask = vectors != self.undefined
         safe_vectors = torch.where(defined_mask, vectors, torch.zeros_like(vectors))
-        column_idx = torch.arange(self.n, device=self.device).unsqueeze(0)
-        gathered = self.iota_relation[safe_vectors, column_idx]
+        feature_idx = torch.arange(self.n, device=self.device).unsqueeze(0)
+        gathered = self.iota_relation[feature_idx, safe_vectors]
         return gathered, defined_mask
 
     def _mismatches_and_weights(self, vectors):
@@ -326,10 +335,10 @@ class TorchAssociativeMemory(torch.nn.Module):
 
     def abstract_batch(self, vectors) -> None:
         vectors = self.validate_batch(vectors).to(dtype=torch.long)
-        rows = vectors.reshape(-1)
-        cols = torch.arange(self.n, device=self.device).repeat(vectors.size(0))
-        updates = torch.ones_like(rows, dtype=self._relation.dtype)
-        delta = torch.zeros((self._m, self._n), dtype=self._relation.dtype, device=self.device)
+        rows = torch.arange(self.n, device=self.device).repeat(vectors.size(0))
+        cols = vectors.reshape(-1)
+        updates = torch.ones_like(cols, dtype=self._relation.dtype)
+        delta = torch.zeros((self._n, self._m), dtype=self._relation.dtype, device=self.device)
         delta.index_put_((rows, cols), updates, accumulate=True)
         self._relation = torch.where(
             self._relation == self.absolute_max_value,
@@ -339,54 +348,44 @@ class TorchAssociativeMemory(torch.nn.Module):
         self._updated = False
 
     def containment(self, r_io):
-        return ~r_io[: self.m, :] | self.iota_relation
+        return ~r_io[:, : self.m] | self.iota_relation.bool()
 
     def containment_batch(self, r_io):
         return torch.logical_or(
-            ~r_io[:, : self.m, :], self.iota_relation.bool().unsqueeze(0)
+            ~r_io[:, :, : self.m], self.iota_relation.bool().unsqueeze(0)
         )
 
+    def produce(self, cue):
+        cue = self.validate(cue)
+        return self.batch_produce(cue.unsqueeze(0)).squeeze(0)
+
+    def batch_produce(self, cues):
+        cues = self.batch_validate(cues)
+        gauss = self._get_gauss_bank()[cues]
+        weights = self._relation[:, : self.m].unsqueeze(0) * gauss
+        cumsum_weights = weights.cumsum(dim=2)
+        totals = cumsum_weights[:, :, -1]
+        random_thresholds = torch.rand(
+            totals.shape, dtype=weights.dtype, device=self.device
+        ) * totals
+        sampled = torch.searchsorted(
+            cumsum_weights.contiguous(),
+            random_thresholds.unsqueeze(-1),
+            right=False,
+        ).squeeze(-1)
+        return torch.where(totals == 0, torch.full_like(sampled, self.m), sampled)
+
     def lreduce(self, vector):
-        """Reduces a relation to a function, using the input vector to guide the sampling."""
-        return self.lreduce_batch(vector).squeeze(0)
+        return self.produce(vector)
 
     def lreduce_batch(self, vectors):
-        vectors = self.validate_batch(vectors)
-        batch_size = vectors.size(0)
-        result = torch.empty((batch_size, self.n), dtype=torch.int16, device=self.device)
-        relation = self.relation
-        chunk_size = max(1, min(self.n, 64))
-
-        for start in range(0, self.n, chunk_size):
-            end = min(start + chunk_size, self.n)
-            vector_chunk = vectors[:, start:end]
-            column_chunk = relation[:, start:end].unsqueeze(0)
-            kernel_values = self._kernel_values(vector_chunk)
-            weighted_columns = column_chunk * kernel_values
-
-            totals = weighted_columns.sum(dim=1)
-            totals = torch.where(totals == 0, torch.ones_like(totals), totals)
-            random_thresholds = totals * torch.rand(
-                totals.shape, dtype=weighted_columns.dtype, device=self.device
-            )
-            cumsum = torch.cumsum(weighted_columns, dim=1).transpose(1, 2).contiguous()
-            sampled = torch.searchsorted(
-                cumsum,
-                random_thresholds.unsqueeze(-1),
-                right=False,
-            ).squeeze(-1)
-            result[:, start:end] = torch.clamp(sampled, max=self.m - 1).to(torch.int16)
-
-        return result
+        return self.batch_produce(vectors)
 
     def validate(self, vector):
         validated = self.validate_batch(vector)
         if validated.size(0) != 1:
             raise ValueError(
-                "Invalid size of the input data. Expected",
-                self.n,
-                "and given",
-                validated.size(),
+                f"Invalid size of the input data. Expected {self.n} and given {validated.numel()}"
             )
         return validated.squeeze(0)
     
@@ -397,41 +396,104 @@ class TorchAssociativeMemory(torch.nn.Module):
     # Operations
 
     def register(self, vector) -> None:
-        self.register_batch(vector)
+        vector = self.validate(vector)
+        r_io = self.vector_to_relation(vector)
+        self.abstract(r_io)
 
-    def register_batch(self, vectors) -> None:
+    def batch_register(self, vectors) -> None:
         self.abstract_batch(vectors)
 
-    def recognize(self, vector):
-        recognized, weight = self.recognize_batch(vector)
-        return recognized.squeeze(0), weight.squeeze(0)
+    def register_batch(self, vectors) -> None:
+        self.batch_register(vectors)
 
-    def recognize_batch(self, vectors):
-        vectors = self.validate_batch(vectors)
+    def recog_weight(self, cue, validate=True):
+        vector = self.validate(cue) if validate else cue
+        recognized = self._mismatches(vector) <= self.xi
+        weight = self._weight(vector)
+        recognized = bool(recognized and (self.kappa * self.mean <= weight))
+        return recognized, weight
+
+    def recognize(self, vector):
+        return self.recog_weight(vector)
+
+    def batch_recog_weights(self, vectors):
+        vectors = self.batch_validate(vectors)
+        if not self._updated:
+            self._updated = self.update()
         mismatches, weights = self._mismatches_and_weights(vectors)
-        recognized = mismatches <= self._t
-        recognized = torch.logical_and(recognized, self.mean * self._kappa <= weights)
+        recognized = mismatches <= self.xi
+        recognized = torch.logical_and(recognized, self.kappa * self.mean <= weights)
         return recognized, weights
 
+    def recognize_batch(self, vectors):
+        return self.batch_recog_weights(vectors)
+
+    def _mismatches(self, vector):
+        r_io = self.to_relation(vector)
+        r_io = self.containment(r_io)
+        return torch.count_nonzero(r_io[:, : self.m] == 0)
+
     def mismatches(self, vector):
-        return self.mismatches_batch(vector).squeeze(0)
+        return self._mismatches(self.validate(vector))
 
     def mismatches_batch(self, vectors):
-        vectors = self.validate_batch(vectors)
+        vectors = self.batch_validate(vectors)
         mismatches, _ = self._mismatches_and_weights(vectors)
         return mismatches
 
-    def recall(self, vector):
-        recalled, accepted, weight = self.recall_batch(vector)
-        return recalled.squeeze(0), accepted.squeeze(0), weight.squeeze(0)
+    def recall(self, cue=None):
+        if cue is None:
+            cue = torch.full((self.n,), float("nan"), dtype=torch.float32, device=self.device)
+        r_io, recognized, weight = self.recall_weights(cue)
+        return r_io, recognized, weight
+
+    def recall_weights(self, cue, validate=True):
+        vector = self.validate(cue) if validate else cue
+        recognized, _ = self.recog_weight(vector, validate=False)
+        r_io = self.produce(vector) if recognized else torch.full((self.n,), self.undefined, dtype=torch.long, device=self.device)
+        weight = self._weight(r_io)
+        r_io = self.revalidate(r_io)
+        return r_io, recognized, weight
+
+    def batch_recall(self, cues):
+        cues = self.batch_validate(cues)
+
+        if not self._updated:
+            self._updated = self.update()
+        features = torch.arange(self.n, device=self.device).unsqueeze(0)
+
+        matches = self._iota_relation[features, cues]
+        is_mismatch = torch.logical_and(matches == 0, cues != self.undefined)
+        mismatches = torch.sum(is_mismatch, dim=1)
+        recognized_mask = mismatches <= self.xi
+
+        cue_weights_per_feature = self._relation[features, cues].float()
+        cue_weights_per_feature = torch.where(
+            cues == self.undefined,
+            torch.zeros_like(cue_weights_per_feature),
+            cue_weights_per_feature,
+        )
+        cue_weights = torch.mean(cue_weights_per_feature, dim=1)
+        recognized_mask = torch.logical_and(
+            recognized_mask,
+            cue_weights >= (self.kappa * self.mean),
+        )
+
+        memories = torch.full_like(cues, self.undefined)
+        if torch.any(recognized_mask):
+            rec_indices = torch.nonzero(recognized_mask, as_tuple=False).squeeze(1)
+            memories[rec_indices] = self.batch_produce(cues[rec_indices])
+
+        mem_weights_per_feature = self._relation[features, memories].float()
+        mem_weights_per_feature = torch.where(
+            memories == self.undefined,
+            torch.zeros_like(mem_weights_per_feature),
+            mem_weights_per_feature,
+        )
+        final_weights = torch.mean(mem_weights_per_feature, dim=1)
+        return memories, recognized_mask, final_weights
 
     def recall_batch(self, vectors):
-        vectors = self.validate_batch(vectors)
-        mismatches, weights = self._mismatches_and_weights(vectors)
-        accepted = torch.logical_and(
-            mismatches <= self._t, self.mean * self._kappa <= weights
-        )
-        recalled = self.lreduce_batch(vectors)
-        fallback = torch.full_like(recalled, self.undefined)
-        recalled = torch.where(accepted.unsqueeze(1), recalled, fallback)
-        return self.revalidate(recalled), accepted, weights
+        memories, accepted, _ = self.batch_recall(vectors)
+        weights = torch.mean(self._weights_batch(memories).float(), dim=1)
+        return self.revalidate(memories), accepted, weights
