@@ -1,7 +1,4 @@
-import math
-import numpy as np
-
-# Copyright [2020] Luis Alberto Pineda Cortés, Gibrán Fuentes Pineda,
+# Copyright [2020-23] Luis Alberto Pineda Cortés, Gibrán Fuentes Pineda,
 # Rafael Morales Gamboa.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -10,13 +7,36 @@ import numpy as np
 #
 #    http://www.apache.org/licenses/LICENSE-2.0
 #
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 # File originally create by Raul Peralta-Lozada.
 
+import math
+import numpy as np
+
+def normpdf(x, mean, sd, scale=1.0):
+    var = float(sd) ** 2
+    denom = (2 * math.pi * var) ** 0.5
+    num = math.exp(-((float(x) - float(mean)) ** 2) / (2 * var))
+    return scale * num / denom
 
 class NumpyAssociativeMemory:
-    def __init__(self, n: int, m: int,
-        xi = 0, sigma=0.1,
-        iota = 0, kappa=0, device=None):
+    def __init__(
+        self,
+        n: int,
+        m: int,
+        xi: int = 0,
+        sigma: float = 0.1,
+        iota: float = 0.0,
+        kappa: float = 0.0,
+        relation=None,
+        verbose=False,
+        device=None,  # Ignored in this implementation
+    ):
         """
         Parameters
         ----------
@@ -25,11 +45,6 @@ class NumpyAssociativeMemory:
         m : int
             The size of the range (of representation).
         """
-        def normpdf(x, mean, sd, scale = 1.0):
-            var = float(sd)**2
-            denom = (2*math.pi*var)**.5
-            num = math.exp(-(float(x)-float(mean))**2/(2*var))
-            return num/(scale*denom)
         self._n = n
         # We need an extra feature to represent the 'undefined' value, so we use m+1 internally.
         self._m = m + 1
@@ -44,6 +59,8 @@ class NumpyAssociativeMemory:
 
         # It is m+1 to handle partial functions.
         self._relation = np.zeros((self._n, self._m), dtype=int)
+        if relation is not None:
+            self._relation[:, :m] = relation
         # Iota moderated relation
         self._iota_relation = np.zeros((self._n, self._m), dtype=int)
         self._entropies = np.zeros(self._n, dtype=float)
@@ -51,36 +68,20 @@ class NumpyAssociativeMemory:
 
         # A flag to know whether iota-relation, entropies and means
         # are up to date.
-        self._updated = self.update()
-        print(
-            f'Memory {{n: {self.n}, m: {self.m}, '
-            + f'xi: {self.xi}, iota: {self.iota}, '
-            + f'kappa: {self.kappa}, sigma: {self.sigma}}}, has been created'
-        )
+        self._updated = True if relation is None else self.update()
+        if verbose:
+            print(
+                f'Memory {{n: {self.n}, m: {self.m}, '
+                + f'xi: {self.xi}, iota: {self.iota}, '
+                + f'kappa: {self.kappa}, sigma: {self.sigma}}}, has been created'
+            )
 
     @classmethod
     def from_relation(
-        cls,
-        relation: np.ndarray,
-        xi=0,
-        sigma=0.1,
-        iota=0,
-        kappa=0,
-        device=None,
+        cls, relation: np.array, verbose=False
     ):
         n, m = relation.shape
-        memory = cls(
-            n=n,
-            m=m,
-            xi=xi,
-            sigma=sigma,
-            iota=iota,
-            kappa=kappa,
-            device=device,
-        )
-        memory._relation[:, :m] = np.asarray(relation)
-        memory._updated = memory.update()
-        return memory
+        return cls(n, m, relation=relation, verbose=verbose)
 
     def __str__(self):
         return str(self.relation)

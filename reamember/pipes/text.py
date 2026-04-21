@@ -13,7 +13,7 @@ from reamember.utils import (
     decode_text_embeddings,
     load_embeddings_dataset,
     create_associative_memory,
-    _get_quantization_bounds,
+    Quant,
 )
 
 from reamember.neuralnets.transformer import SONAR
@@ -56,9 +56,8 @@ def test_text_encoder(cfg, n_examples, device, experiments_root):
         transformer = create_sonar_model(device)
         embeddings_dataset = load_embeddings_dataset(path, device=device)
         reconstructed_text_path = ensure_directory(path / "reconstructed")
-        global_quantize_min, global_quantize_max = _get_quantization_bounds(
-            embeddings_dataset.train.data,
-            embeddings_dataset.test.data,
+        quantizer = Quant(
+            torch.cat([embeddings_dataset.train.data, embeddings_dataset.test.data], dim=0)
         )
 
         total = len(embeddings_dataset.test.data)
@@ -110,8 +109,7 @@ def test_text_encoder(cfg, n_examples, device, experiments_root):
                 eam = memorize(
                     eam,
                     dataset=memory_wrapper.train,
-                    quantize_min=global_quantize_min,
-                    quantize_max=global_quantize_max,
+                    quantizer=quantizer,
                     batch_size=cfg.memory.batch_size,
                 )
 
@@ -121,8 +119,7 @@ def test_text_encoder(cfg, n_examples, device, experiments_root):
                     seen_dataset=memory_wrapper.train,
                     unseen_dataset=memory_wrapper.test,
                     test_dataset=embeddings_dataset.test,
-                    quantize_min=global_quantize_min,
-                    quantize_max=global_quantize_max,
+                    quantizer=quantizer,
                     batch_size=cfg.memory.batch_size,
                 )
 
@@ -131,6 +128,9 @@ def test_text_encoder(cfg, n_examples, device, experiments_root):
                     "latent_dim": int(latent),
                     "memory_domain": domain,
                     "sigma": cfg.memory.sigma,
+                    "iota": cfg.memory.iota,
+                    "kappa": cfg.memory.kappa,
+                    "xi": cfg.memory.xi,
                     "seen_source": "first_half_of_train",
                     "unseen_source": "second_half_of_train",
                     "test_source": "dataset_test_split",
@@ -164,7 +164,7 @@ def test_text_encoder(cfg, n_examples, device, experiments_root):
                     )
                 )
                 fig.update_layout(
-                    title=f"Text Memory Recognition Confusion Matrix (m={domain}) with σ={cfg.memory.sigma}",
+                    title=f"Text Memory Recognition Confusion Matrix (m={domain}) with σ={cfg.memory.sigma}, iota={cfg.memory.iota}, kappa={cfg.memory.kappa}, xi={cfg.memory.xi}",
                     xaxis_title="Memory Decision",
                     yaxis_title="Sample Type",
                     width=1200,
@@ -371,18 +371,15 @@ def create_text_memories(cfg, n_saved, device, experiments_root):
         column=cfg.app.column,
     )
 
-    all = torch.cat([embeddings_dataset.test.data], dim=0)
+    all = torch.cat([embeddings_dataset.train.data, embeddings_dataset.test.data], dim=0)
 
-    global_quantize_min, global_quantize_max = _get_quantization_bounds(
-        all
-    )
+    quantizer = Quant(all)
 
     eam = create_associative_memory(cfg, latent, domain)
     eam = memorize(
         eam,
         dataset=all,
-        quantize_max=global_quantize_max,
-        quantize_min=global_quantize_min,
+        quantizer=quantizer,
         filling_percent=filling_percent,
         batch_size=cfg.memory.batch_size,
     )
@@ -396,8 +393,7 @@ def create_text_memories(cfg, n_saved, device, experiments_root):
     ) = evalm_text(
         eam,
         dataset=embeddings_dataset.test,
-        quantize_min=global_quantize_min,
-        quantize_max=global_quantize_max,
+        quantizer=quantizer,
         batch_size=cfg.memory.batch_size,
     )
 
@@ -440,6 +436,9 @@ def create_text_memories(cfg, n_saved, device, experiments_root):
         "memory_domain": domain,
         "filling_percent": filling_percent,
         "sigma": cfg.memory.sigma,
+        "iota": cfg.memory.iota,
+        "kappa": cfg.memory.kappa,
+        "xi": cfg.memory.xi,
         "recognition": {
             "recognized_rate": float(recognized_rate),
             "unrecognized_rate": float(unrecognized_rate),
@@ -540,15 +539,13 @@ def text_reconstruction_metrics(
 
 
 def get_besttext_params(cfg, config, device, EXPERIMENTS_ROOT):
-    
-    from sklearn.model_selection import KFold
 
     global_results = []
 
     msizes = cfg.memory.domain
     filling_percents = cfg.memory.filling
-    folds = cfg.app.crossval.folds
-    seed = cfg.app.crossval.seed
+    iota_values = [0.0, 0.1, 0.2]
+    kappa_values = [0.0, 0.1, 0.2]
 
     from rich.progress import (
         Progress,
@@ -578,7 +575,14 @@ def get_besttext_params(cfg, config, device, EXPERIMENTS_ROOT):
         f"[blue]Filling Percent: {filling_percents[0]}",
         total=len(filling_percents),
     )
-    fold_task = progress.add_task("[cyan]Folds", total=folds)
+    iota_task = progress.add_task(
+        f"[yellow]Iota: {iota_values[0]}",
+        total=len(iota_values),
+    )
+    kappa_task = progress.add_task(
+        f"[red]Kappa: {kappa_values[0]}",
+        total=len(kappa_values),
+    )
 
     progress.start()
     progress.start_task(latent_task)
@@ -592,105 +596,91 @@ def get_besttext_params(cfg, config, device, EXPERIMENTS_ROOT):
             column=cfg.app.column,
         )
 
-        quantize_min = torch.min(
-            torch.cat([embeddings_dataset.train.data, embeddings_dataset.test.data], dim=0)
-        )
-        quantize_max = torch.max(
-            torch.cat([embeddings_dataset.train.data, embeddings_dataset.test.data], dim=0)
-        )
-
         transformer = create_sonar_model(device)
 
-        X = embeddings_dataset.train.data
-        if isinstance(X, torch.Tensor):
-            X = X.cpu().numpy()
-        texts = np.array([str(text) for text in dataset.train.texts], dtype=object)
-
-        kf = KFold(n_splits=folds, shuffle=True, random_state=seed)
+        train_embeddings = embeddings_dataset.train.data
+        test_embeddings = embeddings_dataset.test.data
+        test_texts = [str(text) for text in dataset.test.texts]
 
         results = []
 
         progress.start_task(msize_task)
         progress.start_task(filling_task)
-        progress.start_task(fold_task)
+        progress.start_task(iota_task)
+        progress.start_task(kappa_task)
 
         for msize in msizes:
             for filling_percent in filling_percents:
-                fold_metrics = []
-                progress.reset(fold_task)
+                progress.reset(iota_task)
+                for iota in iota_values:
+                    progress.reset(kappa_task)
+                    for kappa in kappa_values:
+                        quantizer = Quant(torch.cat([train_embeddings, test_embeddings], dim=0))
+                        cfg.memory.iota = iota
+                        cfg.memory.kappa = kappa
+                        eam = create_associative_memory(cfg, latent, msize)
 
-                for train_idx, val_idx in kf.split(X):
-                    X_train, X_val = X[train_idx], X[val_idx]
-                    texts_val = texts[val_idx].tolist()
-                    quantize_min, quantize_max = _get_quantization_bounds(X_train, X_val)
+                        all = torch.cat([train_embeddings, test_embeddings], dim=0)
 
-                    fold_train_wrapper = EmbeddingDatasetWrapper(
-                        train=torch.tensor(X_train, dtype=torch.float32),
-                        test=torch.tensor(X_val, dtype=torch.float32),
+                        eam = memorize(
+                            eam,
+                            dataset=all,
+                            quantizer=quantizer,
+                            filling_percent=filling_percent,
+                            batch_size=cfg.memory.batch_size,
+                        )
+
+                        (
+                            memories_features,
+                            recognitions,
+                            _weights,
+                            recognized,
+                            unrecognized,
+                        ) = evalm_text(
+                            eam,
+                            dataset=embeddings_dataset.test,
+                            quantizer=quantizer,
+                            batch_size=cfg.memory.batch_size,
+                        )
+
+                        recognized_embeddings = memories_features[recognitions]
+                        recognized_texts = [
+                            text
+                            for text, is_recognized in zip(test_texts, recognitions)
+                            if is_recognized
+                        ]
+
+                        _, summary = text_reconstruction_metrics(
+                            model=transformer,
+                            device=device,
+                            original_texts=recognized_texts,
+                            embeddings=recognized_embeddings,
+                        )
+
+                        results.append(
+                            {
+                                "latent": latent,
+                                "msize": msize,
+                                "filling_percent": filling_percent,
+                                "iota": iota,
+                                "kappa": kappa,
+                                "recognized": recognized,
+                                "unrecognized": unrecognized,
+                                "mean_cosine": summary["mean_cosine"],
+                                "mean_l2": summary["mean_l2"],
+                                "mean_edit_distance": summary["mean_edit_distance"],
+                            }
+                        )
+                        progress.update(
+                            kappa_task,
+                            advance=1,
+                            description=f"[red]Kappa: {kappa}",
+                        )
+                    progress.update(
+                        iota_task,
+                        advance=1,
+                        description=f"[yellow]Iota: {iota}",
                     )
-
-                    eam = create_associative_memory(cfg, latent, msize)
-
-                    eam = memorize(
-                        eam,
-                        dataset=fold_train_wrapper.train,
-                        quantize_min=quantize_min,
-                        quantize_max=quantize_max,
-                        filling_percent=filling_percent,
-                        batch_size=cfg.memory.batch_size,
-                    )
-
-                    (
-                        memories_features,
-                        recognitions,
-                        _weights,
-                        recognized,
-                        unrecognized,
-                    ) = evalm_text(
-                        eam,
-                        dataset=fold_train_wrapper.test,
-                        quantize_min=quantize_min,
-                        quantize_max=quantize_max,
-                        batch_size=cfg.memory.batch_size,
-                    )
-
-                    recognized_embeddings = memories_features[recognitions]
-                    recognized_texts = [
-                        text
-                        for text, is_recognized in zip(texts_val, recognitions)
-                        if is_recognized
-                    ]
-
-                    _, summary = text_reconstruction_metrics(
-                        model=transformer,
-                        device=device,
-                        original_texts=recognized_texts,
-                        embeddings=recognized_embeddings,
-                    )
-
-                    fold_metrics.append(
-                        {
-                            "recognized": recognized,
-                            "unrecognized": unrecognized,
-                            "mean_cosine": summary["mean_cosine"],
-                            "mean_l2": summary["mean_l2"],
-                            "mean_edit_distance": summary["mean_edit_distance"],
-                        }
-                    )
-                    progress.update(fold_task, advance=1)
-
-                avg_metrics = {
-                    key: np.mean([fold_metric[key] for fold_metric in fold_metrics])
-                    for key in fold_metrics[0]
-                }
-                results.append(
-                    {
-                        "latent": latent,
-                        "msize": msize,
-                        "filling_percent": filling_percent,
-                        **avg_metrics,
-                    }
-                )
                 progress.update(
                     filling_task,
                     advance=1,
@@ -710,17 +700,23 @@ def get_besttext_params(cfg, config, device, EXPERIMENTS_ROOT):
             latent_task, advance=1, description=f"[magenta]Latent: {latent}"
         )
 
+        path = get_experiment_path(cfg, EXPERIMENTS_ROOT, latent)
+        save_path = path / f"{latent}_parameters_search_results.json"
+        click.echo(f"[INFO] Saving results to: {save_path}")
+        with open(save_path, "w") as f:
+            json.dump(global_results, f, indent=4)
+
     progress.stop()
 
     path = get_experiment_path(cfg, EXPERIMENTS_ROOT, latent)
-    save_path = path / "memories_results.json"
+    save_path = path / "global_memories_results.json"
     click.echo(f"[INFO] Saving results to: {save_path}")
     with open(save_path, "w") as f:
         json.dump(global_results, f, indent=4)
 
     df = pd.DataFrame(global_results)
     df = df.sort_values(
-        by=["recognized", "mean_cosine", "mean_edit_distance", "mean_l2"],
+        by=["mean_cosine", "recognized", "mean_edit_distance", "mean_l2"],
         ascending=[False, False, True, True],
     )
 
@@ -728,6 +724,8 @@ def get_besttext_params(cfg, config, device, EXPERIMENTS_ROOT):
     cfg.neural.latent_dim = [int(best_params["latent"])]
     cfg.memory.domain = [int(best_params["msize"])]
     cfg.memory.filling = [float(best_params["filling_percent"])]
+    cfg.memory.iota = float(best_params["iota"])
+    cfg.memory.kappa = float(best_params["kappa"])
 
     config_path = Path(config)
     best_config_path = config_path.with_name(

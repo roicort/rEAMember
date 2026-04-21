@@ -15,7 +15,7 @@ neural:
 
 memory:
   domain: [1, 2, 4, 8, 16, 32, 64, 128, 512, 1024]
-  batch_size: 4096
+  batch_size: 512
   filling: [0.5, 0.8, 1.0]
   iota: 0.0
   kappa: 0.0

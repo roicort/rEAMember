@@ -12,6 +12,7 @@ from pathlib import Path
 import json
 import sys
 from tqdm import tqdm
+import numpy as np
 from reamember.eam.associative import NumpyAssociativeMemory as AssociativeMemory
 
 
@@ -24,10 +25,10 @@ def create_associative_memory(cfg, latent, domain, device=None):
     return AssociativeMemory(
         n=latent,
         m=domain,
-        xi=cfg.memory.xi,
-        sigma=cfg.memory.sigma,
-        iota=cfg.memory.iota,
-        kappa=cfg.memory.kappa,
+        xi=cfg.memory.xi[0] if isinstance(cfg.memory.xi, ListConfig) else cfg.memory.xi,
+        sigma=cfg.memory.sigma[0] if isinstance(cfg.memory.sigma, ListConfig) else cfg.memory.sigma,
+        iota=cfg.memory.iota[0] if isinstance(cfg.memory.iota, ListConfig) else cfg.memory.iota,
+        kappa=cfg.memory.kappa[0] if isinstance(cfg.memory.kappa, ListConfig) else cfg.memory.kappa,
         device=device,
     )
 
@@ -212,15 +213,132 @@ def decode_text_embeddings(model, embeddings, device=None, batch_size=32):
 
     return reconstructed_texts
 
-def _get_quantization_bounds(*feature_sets):
-    joined = []
-    for features in feature_sets:
-        if features is None:
-            continue
-        joined.append(torch.as_tensor(features, dtype=torch.float32))
+class Quant:
+    """Quantizer/dequantizer class.
 
-    if not joined:
-        raise ValueError("At least one feature set is required to compute quantization bounds")
+    Provides the methods for quantizing and dequantizing data on the basis
+    of an original corpus and a given number of discrete values. Quantization
+    and dequantization is done using minima and maxima data per column.
+    """
 
-    all_features = torch.cat(joined, dim=0)
-    return torch.min(all_features), torch.max(all_features)
+    def __init__(
+        self,
+        corpus: np.ndarray | torch.Tensor | None = None,
+        *,
+        per_dimension: bool = True,
+        minima: np.ndarray | torch.Tensor | float | None = None,
+        maxima: np.ndarray | torch.Tensor | float | None = None,
+    ):
+        self.per_dimension = per_dimension
+
+        if minima is not None or maxima is not None:
+            if minima is None or maxima is None:
+                raise ValueError("Both minima and maxima must be provided together")
+            self.minima = self._normalize_bound(minima)
+            self.maxima = self._normalize_bound(maxima)
+        else:
+            if corpus is None:
+                raise ValueError(
+                    "Quant requires either a corpus or explicit minima and maxima"
+                )
+            self.minima, self.maxima = self.get_min_max(
+                self._as_numpy(corpus),
+                per_dimension=per_dimension,
+            )
+
+        if np.shape(self.minima) != np.shape(self.maxima):
+            raise ValueError("Minima and maxima must have the same shape")
+
+        idx = np.where(self.minima == self.maxima)[0]
+        if len(idx) > 0:
+            print(
+                f'Minima and maxima have the same value in position(s): {idx.tolist()}'
+            )
+
+    @staticmethod
+    def _as_numpy(value):
+        if torch.is_tensor(value):
+            value = value.detach().cpu().numpy()
+        return np.asarray(value)
+
+    @classmethod
+    def from_global_bounds(cls, minima, maxima):
+        return cls(minima=minima, maxima=maxima, per_dimension=False)
+
+    @classmethod
+    def from_bounds(cls, minima, maxima):
+        minima = cls._normalize_bound(minima)
+        maxima = cls._normalize_bound(maxima)
+        return cls(
+            minima=minima,
+            maxima=maxima,
+            per_dimension=np.ndim(minima) > 0,
+        )
+
+    @staticmethod
+    def _normalize_bound(bound):
+        bound = Quant._as_numpy(bound)
+        if bound.ndim == 0:
+            return float(bound)
+        return np.ravel(bound).astype(float)
+
+    def get_min_max(self, a: np.ndarray, per_dimension: bool = True):
+        """Produces desirable minimum and maximum values for features."""
+        if a.ndim == 0:
+            raise ValueError("Corpus must have at least one dimension")
+        if per_dimension:
+            return np.min(a, axis=0), np.max(a, axis=0)
+        return float(np.min(a)), float(np.max(a))
+
+    def _iter_bounds(self, a: np.ndarray):
+        values = self._as_numpy(a)
+        if values.ndim != 1:
+            raise ValueError(f'The array must have one dimension: {values.shape}.')
+
+        if np.ndim(self.minima) == 0:
+            return zip(
+                values,
+                np.repeat(self.minima, len(values)),
+                np.repeat(self.maxima, len(values)),
+            )
+
+        if len(values) != len(self.minima):
+            raise ValueError(
+                "Input feature length does not match quantization bounds length"
+            )
+        return zip(values, self.minima, self.maxima)
+
+    def quantize(self, a: np.ndarray, m: int):
+        a = self._as_numpy(a)
+        if a.ndim > 2:
+            raise ValueError(f'The array as more than two dimensions: {a.shape}.')
+        elif a.ndim == 1:
+            b = [self._quantize(x, min, max, m) for x, min, max in self._iter_bounds(a)]
+            return np.array(b, dtype=int)
+        else:
+            b = [self.quantize(e, m) for e in a]
+            return np.array(b)
+
+    def dequantize(self, a: np.array, m: int):
+        a = self._as_numpy(a)
+        if a.ndim > 2:
+            raise ValueError(f'The array as more than two dimensions: {a.shape}.')
+        elif a.ndim == 1:
+            b = [
+                self._dequantize(x, min, max, m) for x, min, max in self._iter_bounds(a)
+            ]
+            return np.array(b, dtype=float)
+        else:
+            b = [self.dequantize(e, m) for e in a]
+            return np.array(b)
+
+    def _quantize(self, x, min, max, m):
+        if max == min:
+            return round((m - 1) / 2)
+        elif np.isnan(x):
+            return max + 1
+        else:
+            return round((m - 1) * (x - min) / (max - min))
+
+    def _dequantize(self, i, min, max, m):
+        return (max - min) / 2 if m == 1 else (max - min) * i / (m - 1) + min

@@ -3,9 +3,10 @@ from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 from typing import Any
+from numbers import Real
 
 import torch
-from omegaconf import DictConfig, MISSING, OmegaConf
+from omegaconf import DictConfig, ListConfig, MISSING, OmegaConf
 from tqdm import tqdm
 
 
@@ -44,10 +45,10 @@ class MemoryConfig:
     domain: list[int] = field(default_factory=list)
     batch_size: int | None = None
     filling: list[float] = field(default_factory=list)
-    iota: float = 0.0
-    kappa: float = 0.0
-    xi: float = 0.0
-    sigma: float = 0.1
+    iota: Any = 0.0
+    kappa: Any = 0.0
+    xi: Any = 0.0
+    sigma: Any = 0.1
     m: int | None = None
 
 
@@ -78,6 +79,24 @@ def _require_non_empty_int_list(values: list[int], field_name: str) -> None:
         raise ValueError(f"{field_name} must contain only positive integers")
 
 
+def _numeric_values(value: Any, field_name: str) -> list[float]:
+    if isinstance(value, (list, tuple, ListConfig)):
+        values = value
+    else:
+        values = [value]
+
+    if not values:
+        raise ValueError(f"{field_name} must contain at least one value")
+
+    numeric_values = []
+    for item in values:
+        if not isinstance(item, Real):
+            raise ValueError(f"{field_name} values must be numeric")
+        numeric_values.append(float(item))
+
+    return numeric_values
+
+
 def _validate_runtime_config(cfg: DictConfig) -> None:
     dataset = cfg.app.dataset.strip()
     if not dataset:
@@ -94,6 +113,11 @@ def _validate_runtime_config(cfg: DictConfig) -> None:
     if any(value <= 0 or value > 1 for value in cfg.memory.filling):
         raise ValueError("memory.filling values must be in the range (0, 1]")
 
+    iota_values = _numeric_values(cfg.memory.iota, "memory.iota")
+    kappa_values = _numeric_values(cfg.memory.kappa, "memory.kappa")
+    xi_values = _numeric_values(cfg.memory.xi, "memory.xi")
+    sigma_values = _numeric_values(cfg.memory.sigma, "memory.sigma")
+
     if cfg.app.crossval.folds <= 1:
         raise ValueError("app.crossval.folds must be greater than 1")
     if cfg.app.crossval.seed < 0:
@@ -102,7 +126,13 @@ def _validate_runtime_config(cfg: DictConfig) -> None:
         raise ValueError("memory.noise_level must be greater than or equal to 0")
     if cfg.memory.batch_size is not None and cfg.memory.batch_size <= 0:
         raise ValueError("memory.batch_size must be a positive integer when provided")
-    if cfg.memory.sigma < 0:
+    if any(value < 0 for value in iota_values):
+        raise ValueError("memory.iota values must be greater than or equal to 0")
+    if any(value < 0 for value in kappa_values):
+        raise ValueError("memory.kappa values must be greater than or equal to 0")
+    if any(value < 0 for value in xi_values):
+        raise ValueError("memory.xi values must be greater than or equal to 0")
+    if any(value < 0 for value in sigma_values):
         raise ValueError("memory.sigma must be greater than or equal to 0")
     if cfg.memory.m is not None and cfg.memory.m <= 0:
         raise ValueError("memory.m must be a positive integer when provided")

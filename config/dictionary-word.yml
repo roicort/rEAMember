@@ -7,10 +7,10 @@ neural:
   latent_dim: [1024]
 
 memory:
-  domain: [1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024]
-  batch_size: 512
+  domain: [1024, 2048, 4096, 8192, 16384]
+  batch_size: 16
   filling: [1.0]
-  iota: 0.0
-  kappa: 0.0
-  xi: 0.0
-  sigma: 0.1
+  iota: [0.0, 0.1]
+  kappa: [0.0, 0.1]
+  xi: [0]
+  sigma: [0.1, 0.2]
