@@ -371,7 +371,7 @@ def create_text_memories(cfg, n_saved, device, experiments_root):
         column=cfg.app.column,
     )
 
-    all = torch.cat([embeddings_dataset.train.data, embeddings_dataset.test.data], dim=0)
+    all = torch.cat([embeddings_dataset.test.data], dim=0)
 
     global_quantize_min, global_quantize_max = _get_quantization_bounds(
         all
