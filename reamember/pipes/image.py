@@ -201,7 +201,7 @@ def get_bestimage_params(
 	progress.stop()
 
 	path = get_experiment_path(cfg, experiments_root, latent)
-	save_path = path / "memories_results.json"
+	save_path = path.parent / "memories_results.json"
 	click.echo(f"[INFO] Saving results to: {save_path}")
 	with open(save_path, "w") as f:
 		json.dump(global_results, f, indent=4)
@@ -267,7 +267,7 @@ def test_image_encoder(cfg, n, device, experiments_root):
 		)
 
 
-def create_image_memories(cfg, n, device, experiments_root):
+def create_image_memories(cfg, n_saved, device, experiments_root):
 	latent = int(get_scalar_config_value(cfg.neural.latent_dim))
 	domain = int(get_scalar_config_value(cfg.memory.domain))
 
@@ -330,19 +330,21 @@ def create_image_memories(cfg, n, device, experiments_root):
 		with torch.no_grad():
 			recognition_predictions.append(classifier.predict(feature).cpu().numpy())
 
+	recognition_predictions = np.concatenate(recognition_predictions, axis=0)
+
 	for index in tqdm(
 		range(len(memories_features))
-		if n == 0
-		else range(min(n, len(memories_features)))
+		if n_saved == 0
+		else range(min(n_saved, len(memories_features)))
 	):
 		feature = torch.as_tensor(
 			memories_features[index], dtype=torch.float32, device=device
 		).unsqueeze(0)
+		predicted_class = int(recognition_predictions[index])
 		torchvision.utils.save_image(
-			decoder.decode(feature).cpu(), reconstructed_img_path / f"img_{index}.png"
+			decoder.decode(feature).cpu(),
+			reconstructed_img_path / f"img_{index}_pred_{predicted_class}.png",
 		)
-
-	recognition_predictions = np.concatenate(recognition_predictions, axis=0)
 	original_labels = embeddings_dataset.test.targets.cpu().numpy()
 
 	cm = confusion_matrix(original_labels, recognition_predictions)
@@ -430,7 +432,8 @@ def plot_image_memory_results(cfg, experiments_root):
 	latent = int(get_scalar_config_value(cfg.neural.latent_dim))
 	filling_percent = float(get_scalar_config_value(cfg.memory.filling))
 	path = get_experiment_path(cfg, experiments_root, latent)
-	load_path = path / "memories_results.json"
+	results_root = path.parent
+	load_path = results_root / "memories_results.json"
 	click.echo(f"[INFO] Loading results from: {load_path}")
 
 	with open(load_path) as f:
@@ -478,7 +481,7 @@ def plot_image_memory_results(cfg, experiments_root):
 				height=600,
 			)
 
-			ensure_directory(path / "plots")
+			plot_path = ensure_directory(results_root / "plots")
 
-			fig1.write_image(path / f"plots/memory_results_latent{latent}.svg")
-			fig2.write_image(path / f"plots/memory_scores_latent{latent}.svg")
+			fig1.write_image(plot_path / f"memory_results_latent{latent}.svg")
+			fig2.write_image(plot_path / f"memory_scores_latent{latent}.svg")
