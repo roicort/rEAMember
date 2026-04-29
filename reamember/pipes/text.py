@@ -13,7 +13,6 @@ from reamember.utils import (
     get_experiment_path,
     decode_text_embeddings,
     load_embeddings_dataset,
-    create_associative_memory,
     Quant,
 )
 from omegaconf import ListConfig
@@ -82,6 +81,8 @@ def test_recall(cfg, device, experiments_root):
         else [float(cfg.memory.sigma)]
     )
 
+    print(f"[INFO] Testing recall with latent={latent}, domains={domains}, sigmas={sigmas}, xis={xis}, iotas={iotas}, kappas={kappas}")
+
     train_embeddings = embeddings_dataset.train.data
     split_index = max(1, len(train_embeddings) // 2) # Split train into two halves for seen/unseen evaluation, ensuring at least one sample in the seen half
     memory_wrapper = EmbeddingDatasetWrapper(
@@ -138,7 +139,14 @@ def test_recall(cfg, device, experiments_root):
                         grid_progress.reset(kappa_task)
                         for kappa in kappas:
 
-                            eam = create_associative_memory(cfg, latent, domain)
+                            eam = AssociativeMemory(
+                                n=latent,
+                                m=domain,
+                                xi=xi,
+                                sigma=sigma,
+                                iota=iota,
+                                kappa=kappa,
+                            )
 
                             # Fill with the first half of the training dataset
                             eam = memorize(
@@ -162,10 +170,10 @@ def test_recall(cfg, device, experiments_root):
                                 "dataset": cfg.app.dataset,
                                 "latent_dim": int(latent),
                                 "memory_domain": domain,
-                                "sigma": cfg.memory.sigma,
-                                "iota": cfg.memory.iota,
-                                "kappa": cfg.memory.kappa,
-                                "xi": cfg.memory.xi,
+                                "sigma": sigma,
+                                "iota": iota,
+                                "kappa": kappa,
+                                "xi": xi,
                                 "seen_source": "first_half_of_train",
                                 "unseen_source": "second_half_of_train",
                                 "test_source": "dataset_test_split",
@@ -199,7 +207,7 @@ def test_recall(cfg, device, experiments_root):
                                 )
                             )
                             fig.update_layout(
-                                title=f"Text Memory Recognition Confusion Matrix (m={domain}) with σ={cfg.memory.sigma}, iota={cfg.memory.iota}, kappa={cfg.memory.kappa}, xi={cfg.memory.xi}",
+                                title=f"Text Memory Recognition Confusion Matrix (m={domain}) with σ={sigma}, iota={iota}, kappa={kappa}, xi={xi}",
                                 xaxis_title="Memory Decision",
                                 yaxis_title="Sample Type",
                                 width=1200,
@@ -231,11 +239,31 @@ def test_recall(cfg, device, experiments_root):
                                     indent=4,
                                     ensure_ascii=False,
                                 )
-                            kappa_task.update(advance=1, description=f"[red]Kappa: {kappa}")
-                        iota_task.update(advance=1, description=f"[green]Iota: {iota}")
-                    xi_task.update(advance=1, description=f"[yellow]Xi: {xi}")
-                sigma_task.update(advance=1, description=f"[magenta]Sigma: {sigma}")
-            domain_task.update(advance=1, description=f"[cyan]Domains: {domain}")
+                                grid_progress.update(
+                                    kappa_task,
+                                    advance=1,
+                                    description=f"[red]Kappa: {kappa}",
+                                )
+                                grid_progress.update(
+                                    iota_task,
+                                    advance=1,
+                                    description=f"[green]Iota: {iota}",
+                                )
+                            grid_progress.update(
+                                xi_task,
+                                advance=1,
+                                description=f"[yellow]Xi: {xi}",
+                            )
+                        grid_progress.update(
+                            sigma_task,
+                            advance=1,
+                            description=f"[magenta]Sigma: {sigma}",
+                        )
+                    grid_progress.update(
+                        domain_task,
+                        advance=1,
+                        description=f"[cyan]Domains: {domain}",
+                    )
 
 
 def test_text_encoder(cfg, n_examples, device, experiments_root):
@@ -318,6 +346,10 @@ def create_text_memories(cfg, n_saved, device, experiments_root):
     latent = int(get_scalar_config_value(cfg.neural.latent_dim))
     domain = int(get_scalar_config_value(cfg.memory.domain))
     filling_percent = float(get_scalar_config_value(cfg.memory.filling))
+    sigma = float(get_scalar_config_value(cfg.memory.sigma))
+    iota = float(get_scalar_config_value(cfg.memory.iota))
+    kappa = float(get_scalar_config_value(cfg.memory.kappa))
+    xi = float(get_scalar_config_value(cfg.memory.xi))
 
     click.echo(f"[INFO] Creating text memories with latent={latent}, domain={domain}")
 
@@ -332,7 +364,14 @@ def create_text_memories(cfg, n_saved, device, experiments_root):
 
     quantizer = Quant(all)
 
-    eam = create_associative_memory(cfg, latent, domain)
+    eam = AssociativeMemory(
+        n=latent,
+        m=domain,
+        xi=xi,
+        sigma=sigma,
+        iota=iota,
+        kappa=kappa,
+   )
     eam = memorize(
         eam,
         dataset=all,
@@ -392,10 +431,10 @@ def create_text_memories(cfg, n_saved, device, experiments_root):
         "latent_dim": latent,
         "memory_domain": domain,
         "filling_percent": filling_percent,
-        "sigma": cfg.memory.sigma,
-        "iota": cfg.memory.iota,
-        "kappa": cfg.memory.kappa,
-        "xi": cfg.memory.xi,
+        "sigma": sigma,
+        "iota": iota,
+        "kappa": kappa,
+        "xi": xi,
         "recognition": {
             "recognized_rate": float(recognized_rate),
             "unrecognized_rate": float(unrecognized_rate),

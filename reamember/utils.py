@@ -18,20 +18,6 @@ from reamember.eam.associative import NumpyAssociativeMemory as AssociativeMemor
 
 console = Console()
 
-def create_associative_memory(cfg, latent, domain, device=None):
-    """
-    Create an associative memory instance from config values.
-    """
-    return AssociativeMemory(
-        n=latent,
-        m=domain,
-        xi=cfg.memory.xi[0] if isinstance(cfg.memory.xi, ListConfig) else cfg.memory.xi,
-        sigma=cfg.memory.sigma[0] if isinstance(cfg.memory.sigma, ListConfig) else cfg.memory.sigma,
-        iota=cfg.memory.iota[0] if isinstance(cfg.memory.iota, ListConfig) else cfg.memory.iota,
-        kappa=cfg.memory.kappa[0] if isinstance(cfg.memory.kappa, ListConfig) else cfg.memory.kappa,
-        device=device,
-    )
-
 # Configure rich click for better CLI output
 rich_conf = click.RichHelpConfiguration(
     style_option="bold cyan",
