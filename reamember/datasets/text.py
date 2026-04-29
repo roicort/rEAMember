@@ -38,13 +38,16 @@ def _clean_text(text):
 
 def _clean_definition(definition):
     definition = _clean_text(definition)
-    if "." not in definition:
+    if "." not in definition or "alt." in definition or "p." in definition or "imp." in definition or "pl." in definition:
         return definition
     parts = [part.strip() for part in definition.split(".") if part.strip()]
     if not parts:
         return definition
-    return max(parts, key=len)
-
+    # Return first part if it's significantly shorter than the longest part, otherwise return the longest part
+    if len(parts[0]) < 0.5 * max(len(part) for part in parts):
+        return parts[0]
+    else: 
+        return max(parts, key=len)
 
 class TextDatasetWrapper:
     def __init__(
