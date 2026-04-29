@@ -49,7 +49,6 @@ class MemoryConfig:
     kappa: Any = 0.0
     xi: Any = 0.0
     sigma: Any = 0.1
-    m: int | None = None
 
 
 @dataclass
@@ -134,8 +133,6 @@ def _validate_runtime_config(cfg: DictConfig) -> None:
         raise ValueError("memory.xi values must be greater than or equal to 0")
     if any(value < 0 for value in sigma_values):
         raise ValueError("memory.sigma must be greater than or equal to 0")
-    if cfg.memory.m is not None and cfg.memory.m <= 0:
-        raise ValueError("memory.m must be a positive integer when provided")
 
 
 def loadValConfig(config_path: str | os.PathLike[str]) -> DictConfig:

@@ -26,14 +26,6 @@ from tqdm import tqdm
 
 from reamember.config import loadValConfig, setDeviceConfig
 
-from reamember.datasets.image import ImageDatasetWrapper
-
-# --------------------------------------------------------------
-# EAM
-
-from reamember.neuralnets.autoencoder import Autoencoder
-from reamember.neuralnets.classifier import Classifier
-
 
 from reamember.utils import (
     rich_conf,
@@ -44,20 +36,6 @@ from reamember.utils import (
     load_embeddings_dataset,
     load_model_state,
     task_status,
-)
-
-from reamember.pipes.image import (
-    create_image_memories,
-    get_bestimage_params,
-    plot_image_memory_results,
-    run_image_dream,
-    test_image_encoder,
-)
-from reamember.pipes.text import (
-    create_text_memories,
-    get_besttext_params,
-    get_text_embeddings,
-    test_text_encoder,
 )
 
 ##########################################################################################
@@ -119,6 +97,7 @@ def train_encoder(config):
     if cfg.app.modality == "image":
         with task_status("Training image encoder"):
             from reamember.neuralnets.train import train_autoencoder
+            from reamember.datasets.image import ImageDatasetWrapper
 
             dataset = ImageDatasetWrapper(
                 dataset_name=cfg.app.dataset,
@@ -157,6 +136,8 @@ def test_encoder(config, n):
 
     if cfg.app.modality == "image":
         with task_status("Testing image encoder"):
+            from reamember.pipes.image import test_image_encoder
+
             test_image_encoder(
                 cfg,
                 n=n,
@@ -165,13 +146,14 @@ def test_encoder(config, n):
             )
 
     elif cfg.app.modality == "text":
-        with task_status("Testing text encoder"):
-            test_text_encoder(
-                cfg,
-                n_examples=n,
-                device=device,
-                experiments_root=EXPERIMENTS_ROOT,
-            )
+        from reamember.pipes.text import test_text_encoder
+
+        test_text_encoder(
+            cfg,
+            n_examples=n,
+            device=device,
+            experiments_root=EXPERIMENTS_ROOT,
+        )
 
     # Done
     click.echo("[INFO] Encoder testing completed.")
@@ -196,6 +178,9 @@ def get_embeddings(config):
 
     if cfg.app.modality == "image":
         with task_status("Generating image embeddings"):
+            from reamember.datasets.image import ImageDatasetWrapper
+            from reamember.neuralnets.autoencoder import Autoencoder
+
             dataset = ImageDatasetWrapper(
                 dataset_name=cfg.app.dataset,
             )
@@ -219,6 +204,8 @@ def get_embeddings(config):
 
     elif cfg.app.modality == "text":
         with task_status("Generating text embeddings"):
+            from reamember.pipes.text import get_text_embeddings
+
             get_text_embeddings(cfg, device=device, experiments_root=EXPERIMENTS_ROOT)
 
     # Done
@@ -260,6 +247,8 @@ def train_classifier_command(config):
 @click.option("--config", help="YAML configuration.")
 def test_classifier_command(config):
     "👨🏻‍🏫 Test the classifier on the test set."
+    from reamember.neuralnets.classifier import Classifier
+
     cfg = load_cli_config(config)
     fail_if_text_modality(cfg, "classifier test")
     config_summary(cfg)
@@ -324,7 +313,19 @@ def test_classifier_command(config):
 
 # --------------------------------------------------------------
 # Memory Commands
+@cli.command()
+@click.option("--config", help="YAML configuration.")
+def test_recall(config):
+    "🔍 Test recall with distinct params"
+    cfg = load_cli_config(config)
+    config_summary(cfg)
 
+    if cfg.app.modality == "text":
+        from reamember.pipes.text import test_recall
+        test_recall(cfg, device=device, experiments_root=EXPERIMENTS_ROOT)
+        return
+    else:
+        raise NotImplementedError("Recall testing is only implemented for text modality.")
 
 @cli.command()
 @click.option("--config", help="YAML configuration.")
@@ -334,6 +335,8 @@ def get_bestparams(config):
     config_summary(cfg)
 
     if cfg.app.modality == "text":
+        from reamember.pipes.text import get_besttext_params
+
         get_besttext_params(
             cfg,
             config,
@@ -341,6 +344,8 @@ def get_bestparams(config):
             EXPERIMENTS_ROOT=EXPERIMENTS_ROOT,
         )
         return
+
+    from reamember.pipes.image import get_bestimage_params
 
     get_bestimage_params(
         cfg,
@@ -361,6 +366,8 @@ def create_memories(config, n):
 
     if cfg.app.modality == "image":
         with task_status("Creating image memories"):
+            from reamember.pipes.image import create_image_memories
+
             create_image_memories(
                 cfg,
                 n_saved=n,
@@ -369,6 +376,8 @@ def create_memories(config, n):
             )
     elif cfg.app.modality == "text":
         with task_status("Creating text memories"):
+            from reamember.pipes.text import create_text_memories
+
             create_text_memories(
                 cfg,
                 n_saved=n,
@@ -398,6 +407,8 @@ def dream(config, num_cycles, init_type, idx):
     fail_if_text_modality(cfg, "dream")
     config_summary(cfg)
     with task_status("Running dream cycles"):
+        from reamember.pipes.image import run_image_dream
+
         run_image_dream(
             cfg,
             num_cycles=num_cycles,
@@ -418,6 +429,8 @@ def plot(config):
     # Plots originales de WEAM
     cfg = load_cli_config(config)
     with task_status("Rendering memory plots"):
+        from reamember.pipes.image import plot_image_memory_results
+
         plot_image_memory_results(cfg, experiments_root=EXPERIMENTS_ROOT)
 
 
