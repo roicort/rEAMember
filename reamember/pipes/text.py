@@ -239,31 +239,31 @@ def test_recall(cfg, device, experiments_root):
                                     indent=4,
                                     ensure_ascii=False,
                                 )
-                                grid_progress.update(
-                                    kappa_task,
-                                    advance=1,
-                                    description=f"[red]Kappa: {kappa}",
-                                )
-                                grid_progress.update(
-                                    iota_task,
-                                    advance=1,
-                                    description=f"[green]Iota: {iota}",
-                                )
                             grid_progress.update(
-                                xi_task,
+                                kappa_task,
                                 advance=1,
-                                description=f"[yellow]Xi: {xi}",
+                                description=f"[red]Kappa: {kappa}",
                             )
                         grid_progress.update(
-                            sigma_task,
+                            iota_task,
                             advance=1,
-                            description=f"[magenta]Sigma: {sigma}",
+                            description=f"[green]Iota: {iota}",
                         )
                     grid_progress.update(
-                        domain_task,
+                        xi_task,
                         advance=1,
-                        description=f"[cyan]Domains: {domain}",
+                        description=f"[yellow]Xi: {xi}",
                     )
+                grid_progress.update(
+                    sigma_task,
+                    advance=1,
+                    description=f"[magenta]Sigma: {sigma}",
+                )
+            grid_progress.update(
+                domain_task,
+                advance=1,
+                description=f"[cyan]Domains: {domain}",
+            )
 
 
 def test_text_encoder(cfg, n_examples, device, experiments_root):
