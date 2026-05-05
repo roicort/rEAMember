@@ -1,6 +1,7 @@
 import numpy as np
 import torch
 from tqdm import tqdm
+from reamember.utils import task_status
 
 
 def _get_dataset_features(dataset):
@@ -41,7 +42,8 @@ def memorize(eam, dataset, quantizer, filling_percent=1.0, batch_size=None):
     batch_register = getattr(eam, "batch_register", None)
 
     features = _to_numpy(_get_dataset_features(dataset))
-    features_rounded = quantizer.quantize(features, eam.m)
+    with task_status("Quantizing features..."):
+        features_rounded = quantizer.quantize(features, eam.m)
 
     if filling_percent < 1.0:
         n_features = int(len(features_rounded) * filling_percent)

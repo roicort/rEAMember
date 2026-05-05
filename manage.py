@@ -461,6 +461,13 @@ def clean_logs():
         else:
             click.echo(f"[INFO] No logs to clean at: {log_path}")
 
+@cli.command()
+@click.option("--config", help="YAML configuration.")
+def interactive(config):
+    "Start an interactive session."
+    cfg = load_cli_config(config)
+    from reamember.pipes.text import interactive_memory
+    interactive_memory(cfg, device=device, experiments_root=EXPERIMENTS_ROOT)
 
 #########################################################################
 # Add commands and run the main CLI group

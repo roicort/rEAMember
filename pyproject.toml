@@ -26,4 +26,5 @@ dependencies = [
     "fairseq2==0.7.0",
     "tqdm>=4.67.3",
     "nltk>=3.9.4",
+    "gradio>=6.14.0",
 ]

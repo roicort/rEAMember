@@ -774,3 +774,154 @@ def get_besttext_params(cfg, config, device, EXPERIMENTS_ROOT):
         OmegaConf.save(cfg, f)
 
     click.echo("[INFO] Best text parameters search completed.")
+
+
+def interactive_memory(cfg, device, experiments_root):
+    import gradio as gr
+
+    latent = int(get_scalar_config_value(cfg.neural.latent_dim))
+    domain = int(get_scalar_config_value(cfg.memory.domain))
+    filling_percent = float(get_scalar_config_value(cfg.memory.filling))
+    sigma = float(get_scalar_config_value(cfg.memory.sigma))
+    iota = float(get_scalar_config_value(cfg.memory.iota))
+    kappa = float(get_scalar_config_value(cfg.memory.kappa))
+    xi = float(get_scalar_config_value(cfg.memory.xi))
+
+    click.echo(f"[INFO] Creating UI with latent={latent}, domain={domain}")
+
+    path = get_experiment_path(cfg, experiments_root, latent)
+    embeddings_dataset = load_embeddings_dataset(path, device=device)
+
+    all = torch.cat([embeddings_dataset.train.data, embeddings_dataset.test.data], dim=0)
+
+    quantizer = Quant(all)
+    transformer = create_sonar_model(device)
+
+    eam = AssociativeMemory(
+        n=latent,
+        m=domain,
+        xi=xi,
+        sigma=sigma,
+        iota=iota,
+        kappa=kappa,
+    )
+    eam = memorize(
+        eam,
+        dataset=all,
+        quantizer=quantizer,
+        filling_percent=filling_percent,
+        batch_size=cfg.memory.batch_size,
+    )
+
+    def update_memory_params(eam_instance, xi_value, sigma_value, iota_value, kappa_value):
+        if eam_instance is None:
+            return None, "La memoria no esta inicializada."
+
+        eam_instance.xi = int(xi_value)
+        eam_instance.sigma = float(sigma_value)
+        eam_instance.iota = float(iota_value)
+        eam_instance.kappa = float(kappa_value)
+
+        return (
+            eam_instance,
+            "Parametros actualizados en la instancia actual: "
+            f"xi={eam_instance.xi}, sigma={eam_instance.sigma:.4f}, "
+            f"iota={eam_instance.iota:.4f}, kappa={eam_instance.kappa:.4f}."
+        )
+
+    def interactive_recall(cue, eam_instance, progress=gr.Progress()):
+        cue = str(cue).strip()
+        if not cue:
+            return "", "Escribe un texto para consultar la memoria."
+
+        if eam_instance is None:
+            return "", "La memoria no esta inicializada."
+
+        progress(0.1, desc="Codificando entrada")
+        with torch.no_grad():
+            cue_embedding = transformer.encode([cue], device=device)
+            cue_embedding = cue_embedding.cpu().numpy()
+
+            progress(0.35, desc="Cuantizando embedding")
+            cue_quantized = quantizer.quantize(cue_embedding, eam_instance.m)
+
+            progress(0.6, desc="Consultando memoria")
+            recalled_embeddings, recognized, weights = eam_instance.batch_recall(cue_quantized)
+            recognized = bool(np.asarray(recognized)[0])
+            weight = float(np.asarray(weights, dtype=float)[0])
+
+            if not recognized:
+                progress(1.0, desc="Sin coincidencia")
+                return "", f"No se reconocio ninguna memoria para la entrada. Peso medio: {weight:.4f}."
+
+            progress(0.8, desc="Reconstruyendo embedding")
+            recalled_embedding = quantizer.dequantize(
+                np.asarray(recalled_embeddings, dtype=float), eam_instance.m
+            )[0]
+            recalled_embedding = torch.as_tensor(
+                recalled_embedding, dtype=torch.float32
+            ).unsqueeze(0)
+
+            progress(0.95, desc="Decodificando texto")
+            recalled_text = decode_text_embeddings(
+                model=transformer,
+                embeddings=recalled_embedding,
+                device=device,
+            )[0]
+
+        progress(1.0, desc="Completado")
+        return recalled_text, f"Memoria reconocida correctamente. Peso medio: {weight:.4f}."
+
+    with gr.Blocks() as recall:
+        gr.Markdown(
+            f"## Memoria interactiva\nLatente: {latent} | Dominio: {domain} | Filling: {filling_percent:.2f}"
+        )
+        gr.Markdown(
+            "Puedes actualizar xi, sigma, iota y kappa sobre la misma instancia de memoria. "
+            "Si quieres cambiar domain, hay que reconstruir la memoria."
+        )
+
+        memory_state = gr.State(value=eam)
+
+        with gr.Row():
+            xi_input = gr.Number(value=xi, label="Xi", precision=0)
+            sigma_input = gr.Number(value=sigma, label="Sigma")
+            iota_input = gr.Number(value=iota, label="Iota")
+            kappa_input = gr.Number(value=kappa, label="Kappa")
+
+        update_button = gr.Button("Actualizar parametros", variant="primary")
+        memory_status = gr.Markdown(
+            value=(
+                "Memoria inicializada con "
+                f"xi={eam.xi}, sigma={eam.sigma:.4f}, iota={eam.iota:.4f}, kappa={eam.kappa:.4f}."
+            )
+        )
+
+        cue_input = gr.Textbox(
+            lines=3,
+            label="Texto de entrada",
+            placeholder="Escribe una frase para consultar la memoria",
+        )
+        recall_button = gr.Button("Consultar memoria")
+        recalled_output = gr.Textbox(label="Texto recordado")
+        recall_status = gr.Markdown(label="Estado")
+
+        update_button.click(
+            fn=update_memory_params,
+            inputs=[memory_state, xi_input, sigma_input, iota_input, kappa_input],
+            outputs=[memory_state, memory_status],
+        )
+
+        recall_button.click(
+            fn=interactive_recall,
+            inputs=[cue_input, memory_state],
+            outputs=[recalled_output, recall_status],
+        )
+
+        cue_input.submit(
+            fn=interactive_recall,
+            inputs=[cue_input, memory_state],
+            outputs=[recalled_output, recall_status],
+        )
+
+    recall.launch()
