@@ -329,7 +329,12 @@ def test_recall(config):
 
 @cli.command()
 @click.option("--config", help="YAML configuration.")
-def get_bestparams(config):
+@click.option(
+    "--noise",
+    is_flag=True,
+    help="Use cfg.memory.noise_level when evaluating text reconstruction.",
+)
+def get_bestparams(config, noise):
     "🔍 Search best memory sizes and filling percents."
     cfg = load_cli_config(config)
     config_summary(cfg)
@@ -340,6 +345,7 @@ def get_bestparams(config):
         get_besttext_params(
             cfg,
             config,
+            use_noise=noise,
             device=device,
             EXPERIMENTS_ROOT=EXPERIMENTS_ROOT,
         )
@@ -358,7 +364,12 @@ def get_bestparams(config):
 @cli.command()
 @click.option("--config", help="YAML configuration.")
 @click.option("--n", default=0, help="Number of samples to recall. If 0, recall all.")
-def create_memories(config, n):
+@click.option(
+    "--noise",
+    is_flag=True,
+    help="Use cfg.memory.noise_level when evaluating text reconstruction.",
+)
+def create_memories(config, n, noise):
     "🧠 Create memories."
 
     cfg = load_cli_config(config)
@@ -381,6 +392,7 @@ def create_memories(config, n):
             create_text_memories(
                 cfg,
                 n_saved=n,
+                use_noise=noise,
                 device=device,
                 experiments_root=EXPERIMENTS_ROOT,
             )

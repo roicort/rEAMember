@@ -24,11 +24,12 @@ function timeit() {
 }
 
 timeit "uv run manage.py get-embeddings --config $CONFIG" "get-embeddings"
-timeit "uv run manage.py encoder test --config $CONFIG --n 100" "encoder test"
+#timeit "uv run manage.py encoder test --config $CONFIG --n 100" "encoder test"
 timeit "uv run manage.py test-recall --config $CONFIG" "test-recall"
-timeit "uv run manage.py get-bestparams --config $CONFIG" "get-bestparams"
+#timeit "uv run manage.py get-bestparams --config $CONFIG" "get-bestparams"
+#timeit "uv run manage.py get-bestparams --config $CONFIG --noise" "get-bestparams"
 
-CONFIG="${CONFIG/.yml/.best.yml}"
+#CONFIG="${CONFIG/.yml/.best.yml}"
 
-timeit "uv run manage.py plot --config $CONFIG" "plot"
-timeit "uv run manage.py create-memories --config $CONFIG --n 1000" "create-memories"
+#timeit "uv run manage.py plot --config $CONFIG" "plot"
+#timeit "uv run manage.py create-memories --config $CONFIG --n 1000" "create-memories"

@@ -8,9 +8,9 @@ neural:
 
 memory:
   domain: [4096, 8192, 16384]
-  batch_size: 16
+  batch_size: [64, 32, 16]
   filling: [1.0]
   iota: [0.0, 0.1]
-  kappa: [0.0, 0.1]
-  xi: [0]
-  sigma: [0.1, 0.2]
+  kappa: [0.0]
+  xi: [0, 100, 200]
+  sigma: [0.01, 0.06, 0.1]

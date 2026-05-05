@@ -24,7 +24,19 @@ from reamember.datasets.text import TextDatasetWrapper
 from reamember.datasets.embedding import EmbeddingDatasetWrapper
 from omegaconf import OmegaConf
 from pathlib import Path
-import re
+
+
+def get_memory_batch_size(cfg, domain):
+    batch_size = cfg.memory.batch_size
+    if not isinstance(batch_size, (list, tuple, ListConfig)):
+        return batch_size
+    if len(batch_size) == 0:
+        return None
+    if len(batch_size) != len(cfg.memory.domain):
+        return batch_size[0]
+
+    domain_index = list(cfg.memory.domain).index(domain)
+    return batch_size[domain_index]
 
 def create_sonar_model(runtime_device):
     """
@@ -131,6 +143,7 @@ def test_recall(cfg, device, experiments_root):
 
         for domain in domains:
             grid_progress.reset(sigma_task)
+            batch_size = get_memory_batch_size(cfg, domain)
             for sigma in sigmas:
                 grid_progress.reset(xi_task)
                 for xi in xis:
@@ -138,6 +151,7 @@ def test_recall(cfg, device, experiments_root):
                     for iota in iotas:
                         grid_progress.reset(kappa_task)
                         for kappa in kappas:
+
 
                             eam = AssociativeMemory(
                                 n=latent,
@@ -153,7 +167,7 @@ def test_recall(cfg, device, experiments_root):
                                 eam,
                                 dataset=memory_wrapper.train,
                                 quantizer=quantizer,
-                                batch_size=cfg.memory.batch_size,
+                                batch_size=batch_size,
                             )
 
                             # Evaluate recognition on the seen and unseen halves
@@ -163,7 +177,7 @@ def test_recall(cfg, device, experiments_root):
                                 unseen_dataset=memory_wrapper.test,
                                 test_dataset=embeddings_dataset.test,
                                 quantizer=quantizer,
-                                batch_size=cfg.memory.batch_size,
+                                batch_size=batch_size,
                             )
 
                             confusion_payload = {
@@ -219,18 +233,13 @@ def test_recall(cfg, device, experiments_root):
                             )
                             fig.write_image(
                                 recognition_text_path
-                                / f"recognition_confusion_domain_{domain}_sigma_{sigma}_xi_{xi}_iota_{iota}_kappa_{kappa}.png"
+                                / f"recognition_confusion_domain_{domain}_sigma_{sigma}_xi_{xi}_iota_{iota}_kappa_{kappa}.svg"
                             )
                             click.echo(
                                 f"[INFO] Recognition rates (m={domain}) | seen recognized: {confusion['rates']['seen_recognized_rate']:.4f} "
                                 f"| unseen recognized: {confusion['rates']['unseen_recognized_rate']:.4f} "
                                 f"| test recognized: {confusion['rates']['test_recognized_rate']:.4f}"
                             )
-                            click.echo(f"[INFO] Recognition confusion saved to: {confusion_path}")
-                            click.echo(
-                                f"[INFO] Recognition confusion plot saved to: {recognition_text_path / f'recognition_confusion_domain_{domain}_sigma_{sigma}_xi_{xi}_iota_{iota}_kappa_{kappa}.html'}"
-                            )
-
                             confusion_summaries.append(confusion_payload)
                             with open(confusion_summary_path, "w", encoding="utf-8") as f_out:
                                 json.dump(
@@ -280,7 +289,6 @@ def test_text_encoder(cfg, n_examples, device, experiments_root):
     path = get_experiment_path(cfg, experiments_root, latent)
     transformer = create_sonar_model(device)
     embeddings_dataset = load_embeddings_dataset(path, device=device)
-    transformer = create_sonar_model(device)
     reconstructed_text_path = ensure_directory(path / "reconstructed")
     total_test = len(embeddings_dataset.test.data)
     original_test_texts = [str(text) for text in dataset.test.texts[:total_test]]
@@ -345,13 +353,16 @@ def get_text_embeddings(cfg, device, experiments_root):
 def create_text_memories(cfg, n_saved, device, experiments_root):
     latent = int(get_scalar_config_value(cfg.neural.latent_dim))
     domain = int(get_scalar_config_value(cfg.memory.domain))
+    batch_size = get_memory_batch_size(cfg, domain)
     filling_percent = float(get_scalar_config_value(cfg.memory.filling))
     sigma = float(get_scalar_config_value(cfg.memory.sigma))
     iota = float(get_scalar_config_value(cfg.memory.iota))
     kappa = float(get_scalar_config_value(cfg.memory.kappa))
     xi = float(get_scalar_config_value(cfg.memory.xi))
 
-    click.echo(f"[INFO] Creating text memories with latent={latent}, domain={domain}")
+    click.echo(
+        f"[INFO] Creating text memories with latent={latent}, domain={domain}"
+    )
 
     path = get_experiment_path(cfg, experiments_root, latent)
     embeddings_dataset = load_embeddings_dataset(path, device=device)
@@ -377,7 +388,7 @@ def create_text_memories(cfg, n_saved, device, experiments_root):
         dataset=all,
         quantizer=quantizer,
         filling_percent=filling_percent,
-        batch_size=cfg.memory.batch_size,
+        batch_size=batch_size,
     )
     
     (
@@ -390,7 +401,7 @@ def create_text_memories(cfg, n_saved, device, experiments_root):
         eam,
         dataset=embeddings_dataset.test,
         quantizer=quantizer,
-        batch_size=cfg.memory.batch_size,
+        batch_size=batch_size,
     )
 
     total = len(memories_features)
@@ -458,8 +469,13 @@ def create_text_memories(cfg, n_saved, device, experiments_root):
     click.echo(f"[INFO] Reconstructed texts saved to: {reconstructed_samples_path}")
     click.echo(f"[INFO] Text memory metrics saved to: {metrics_path}")
 
+
 def text_reconstruction_metrics(
-    model, device, original_texts, embeddings, batch_size=32
+    model,
+    device,
+    original_texts,
+    embeddings,
+    batch_size=32,
 ):
     """
     Compute reconstruction metrics directly in embedding space and text space.
@@ -472,15 +488,24 @@ def text_reconstruction_metrics(
             "mean_edit_distance": 0.0,
         }
 
+    original_texts = [str(text) for text in original_texts]
+
     if getattr(device, "type", None) == "mps":
         device = torch.device("cpu")
-        source_embeddings = torch.as_tensor(embeddings, dtype=torch.float32).cpu()
+        target_device = device
     else:
-        source_embeddings = torch.as_tensor(embeddings, dtype=torch.float32).to(device)
+        target_device = device
+
+    source_embeddings = torch.as_tensor(
+        embeddings,
+        dtype=torch.float32,
+        device=target_device,
+    )
+
     reconstructed_texts = decode_text_embeddings(
         model=model,
         embeddings=source_embeddings,
-        device=device,
+        device=target_device,
         batch_size=batch_size,
     )
 
@@ -506,13 +531,14 @@ def text_reconstruction_metrics(
     l2_scores = torch.linalg.norm(source_embeddings - reconstructed_embeddings, dim=1)
 
     samples = []
-    for index, (original, reconstructed, cosine, l2) in enumerate(
-        zip(original_texts, reconstructed_texts, cosine_scores, l2_scores)
+    for index, (original, cue, reconstructed, cosine, l2) in enumerate(
+        zip(original_texts, original_texts, reconstructed_texts, cosine_scores, l2_scores)
     ):
         samples.append(
             {
                 "index": index,
                 "original": original,
+                "cue": cue,
                 "reconstructed": reconstructed,
                 "cosine": float(cosine.item()),
                 "l2": float(l2.item()),
@@ -619,6 +645,7 @@ def get_besttext_params(cfg, config, device, EXPERIMENTS_ROOT):
 
         train_embeddings = embeddings_dataset.train.data
         test_embeddings = embeddings_dataset.test.data
+        
         all_embeddings = torch.cat([train_embeddings, test_embeddings], dim=0)
         quantizer = Quant(all_embeddings)
         test_texts = [str(text) for text in dataset.test.texts]
@@ -641,6 +668,9 @@ def get_besttext_params(cfg, config, device, EXPERIMENTS_ROOT):
                         for iota in iota_values:
                             progress.reset(kappa_task)
                             for kappa in kappa_values:
+                                batch_size = get_memory_batch_size(cfg, msize)
+                                
+                                # Create memory
                                 eam = AssociativeMemory(
                                     n=latent,
                                     m=msize,
@@ -649,15 +679,14 @@ def get_besttext_params(cfg, config, device, EXPERIMENTS_ROOT):
                                     iota=iota,
                                     kappa=kappa,
                                 )
-
+                                # Fill memory with all embeddings (train + test) 
                                 eam = memorize(
                                     eam,
                                     dataset=all_embeddings,
                                     quantizer=quantizer,
                                     filling_percent=filling_percent,
-                                    batch_size=cfg.memory.batch_size,
+                                    batch_size=batch_size,
                                 )
-
                                 (
                                     memories_features,
                                     recognitions,
@@ -668,7 +697,7 @@ def get_besttext_params(cfg, config, device, EXPERIMENTS_ROOT):
                                     eam,
                                     dataset=embeddings_dataset.test,
                                     quantizer=quantizer,
-                                    batch_size=cfg.memory.batch_size,
+                                    batch_size=batch_size,
                                 )
 
                                 recognized_embeddings = memories_features[recognitions]
@@ -735,7 +764,7 @@ def get_besttext_params(cfg, config, device, EXPERIMENTS_ROOT):
         )
 
         path = get_experiment_path(cfg, EXPERIMENTS_ROOT, latent)
-        save_path = path / f"{latent}_parameters_search_results.json"
+        save_path = path / f"{latent}_parameters_search_results.partial.json"
         click.echo(f"[INFO] Saving results to: {save_path}")
         with open(save_path, "w") as f:
             json.dump(global_results, f, indent=4)
@@ -755,8 +784,11 @@ def get_besttext_params(cfg, config, device, EXPERIMENTS_ROOT):
     )
 
     best_params = df.iloc[0].to_dict()
+    best_domain = int(best_params["msize"])
+    best_batch_size = get_memory_batch_size(cfg, best_domain)
     cfg.neural.latent_dim = [int(best_params["latent"])]
-    cfg.memory.domain = [int(best_params["msize"])]
+    cfg.memory.domain = [best_domain]
+    cfg.memory.batch_size = best_batch_size
     cfg.memory.filling = [float(best_params["filling_percent"])]
     cfg.memory.sigma = float(best_params["sigma"])
     cfg.memory.xi = float(best_params["xi"])
@@ -764,9 +796,7 @@ def get_besttext_params(cfg, config, device, EXPERIMENTS_ROOT):
     cfg.memory.kappa = float(best_params["kappa"])
 
     config_path = Path(config)
-    best_config_path = config_path.with_name(
-        re.sub(r"\.yml$", ".best.yml", config_path.name)
-    )
+    best_config_path = config_path.with_name(f"{config_path.stem}.best{config_path.suffix}")
     click.echo(
         f"[INFO] Saving updated config with best parameters to: {best_config_path}"
     )
@@ -781,6 +811,7 @@ def interactive_memory(cfg, device, experiments_root):
 
     latent = int(get_scalar_config_value(cfg.neural.latent_dim))
     domain = int(get_scalar_config_value(cfg.memory.domain))
+    batch_size = get_memory_batch_size(cfg, domain)
     filling_percent = float(get_scalar_config_value(cfg.memory.filling))
     sigma = float(get_scalar_config_value(cfg.memory.sigma))
     iota = float(get_scalar_config_value(cfg.memory.iota))
@@ -810,7 +841,7 @@ def interactive_memory(cfg, device, experiments_root):
         dataset=all,
         quantizer=quantizer,
         filling_percent=filling_percent,
-        batch_size=cfg.memory.batch_size,
+        batch_size=batch_size,
     )
 
     def update_memory_params(eam_instance, xi_value, sigma_value, iota_value, kappa_value):
