@@ -2,6 +2,7 @@ import torch
 import numpy as np
 import pandas as pd
 import json
+import re
 from nltk.metrics import edit_distance
 from tqdm import tqdm
 from plotly import graph_objects as go
@@ -51,6 +52,39 @@ def create_sonar_model(runtime_device):
             decode_device=torch.device("cpu"),
         )
     return SONAR(device=runtime_device)
+
+
+def random_text_mask(text, character_mask='#'):
+    text = str(text)
+    tokens = list(re.finditer(r"\S+", text))
+
+    if not tokens:
+        return text
+
+    if len(tokens) > 1:
+        selected = tokens[np.random.randint(len(tokens))]
+        start, end = selected.span()
+        return f"{text[:start]}{character_mask * (end - start)}{text[end:]}"
+
+    token = tokens[0]
+    start, end = token.span()
+    word = token.group(0)
+    replaceable_positions = [
+        index for index, char in enumerate(word) if char.isalpha()
+    ]
+    if not replaceable_positions:
+        replaceable_positions = list(range(len(word)))
+
+    mask = np.random.rand(len(replaceable_positions)) > 0.5
+    if not mask.any():
+        mask[np.random.randint(len(replaceable_positions))] = True
+
+    masked_word = list(word)
+    for should_mask, position in zip(mask, replaceable_positions):
+        if should_mask:
+            masked_word[position] = character_mask
+
+    return f"{text[:start]}{''.join(masked_word)}{text[end:]}"
 
 def test_recall(cfg, device, experiments_root):
 
@@ -282,6 +316,7 @@ def test_text_encoder(cfg, n_examples, device, experiments_root):
     dataset = TextDatasetWrapper(
         dataset_name=cfg.app.dataset,
         column=cfg.app.column,
+        seed=cfg.app.seed,
     )
 
     latent = cfg.neural.latent_dim[0] if isinstance(cfg.neural.latent_dim, ListConfig) else int(cfg.neural.latent_dim)
@@ -336,10 +371,12 @@ def get_text_embeddings(cfg, device, experiments_root):
     dataset = TextDatasetWrapper(
         dataset_name=cfg.app.dataset,
         column=cfg.app.column,
+        seed=cfg.app.seed,
     )
 
     latent = cfg.neural.latent_dim[0] if isinstance(cfg.neural.latent_dim, ListConfig) else int(cfg.neural.latent_dim)
     path = get_experiment_path(cfg, experiments_root, latent)
+    file_embeddings_path = path / "embeddings.pth"
     model = create_sonar_model(device)
 
     build_embeddings(
@@ -347,10 +384,41 @@ def get_text_embeddings(cfg, device, experiments_root):
         dataset,
         modality=cfg.app.modality,
         device=device,
-        save_path=path,
+        save_path=file_embeddings_path,
     )
 
-def create_text_memories(cfg, n_saved, device, experiments_root):
+    if cfg.app.noise is not None and cfg.app.noise > 0:
+        # Add mask to the embeddings 
+        file_embeddings_path = path / "embeddings_noised.pth"
+        noise_level = float(get_scalar_config_value(cfg.app.noise))
+        noised_train_texts = [
+            text if np.random.rand() > noise_level else random_text_mask(text)
+            for text in (dataset.train[index] for index in range(len(dataset.train)))
+        ]
+        noised_test_texts = [
+            text if np.random.rand() > noise_level else random_text_mask(text)
+            for text in (dataset.test[index] for index in range(len(dataset.test)))
+        ]
+        noised_dataset = TextDatasetWrapper(
+            dataset_name=cfg.app.dataset,
+            column=cfg.app.column,
+            seed=cfg.app.seed,
+        )
+        noised_dataset.train.texts = noised_train_texts
+        noised_dataset.test.texts = noised_test_texts
+        # Save the materialized test texts with noise for later analysis
+        noised_test_texts_path = path / "noised_test_texts.npy"
+        np.save(noised_test_texts_path, np.array(noised_test_texts, dtype=object))
+        
+        build_embeddings(
+            model,
+            noised_dataset,
+            modality=cfg.app.modality,
+            device=device,
+            save_path=file_embeddings_path,
+        )
+
+def create_text_memories(cfg, n_saved, device, use_noise=False, experiments_root=None):
     latent = int(get_scalar_config_value(cfg.neural.latent_dim))
     domain = int(get_scalar_config_value(cfg.memory.domain))
     batch_size = get_memory_batch_size(cfg, domain)
@@ -366,12 +434,21 @@ def create_text_memories(cfg, n_saved, device, experiments_root):
 
     path = get_experiment_path(cfg, experiments_root, latent)
     embeddings_dataset = load_embeddings_dataset(path, device=device)
+
     dataset = TextDatasetWrapper(
         dataset_name=cfg.app.dataset,
         column=cfg.app.column,
+        seed=cfg.app.seed,
     )
 
     all = torch.cat([embeddings_dataset.train.data, embeddings_dataset.test.data], dim=0)
+
+    if use_noise:
+        noised_embeddings_dataset = load_embeddings_dataset(path, device=device, noised=True)
+        noised_test_texts = np.load(
+            path / "noised_test_texts.npy",
+            allow_pickle=True,
+        ).tolist()
 
     quantizer = Quant(all)
 
@@ -390,6 +467,11 @@ def create_text_memories(cfg, n_saved, device, experiments_root):
         filling_percent=filling_percent,
         batch_size=batch_size,
     )
+
+    if use_noise:
+        eval_dataset = noised_embeddings_dataset.test
+    else:
+        eval_dataset = embeddings_dataset.test
     
     (
         memories_features,
@@ -399,7 +481,7 @@ def create_text_memories(cfg, n_saved, device, experiments_root):
         unrecognized_rate,
     ) = evalm_text(
         eam,
-        dataset=embeddings_dataset.test,
+        dataset=eval_dataset,
         quantizer=quantizer,
         batch_size=batch_size,
     )
@@ -407,23 +489,35 @@ def create_text_memories(cfg, n_saved, device, experiments_root):
     total = len(memories_features)
 
     transformer = create_sonar_model(device)
-    output_path = ensure_directory(path / f"dim{domain}_memory_reconstructed")
+
+    if use_noise:
+        click.echo(f"[INFO] Evaluating text reconstruction with noise level: {cfg.app.noise}")
+        output_path = ensure_directory(path / f"dim{domain}_memory_reconstructed_noise_{cfg.app.noise}")
+    else:
+        click.echo("[INFO] Evaluating text reconstruction without noise")
+        output_path = ensure_directory(path / f"dim{domain}_memory_reconstructed")
 
     all_texts = [str(text) for text in dataset.test.texts[:total]]
     recognized_indices = np.flatnonzero(recognitions)
     reconstructable_texts = [all_texts[index] for index in recognized_indices]
+    reconstructable_cues = (
+        [str(noised_test_texts[index]) for index in recognized_indices]
+        if use_noise
+        else reconstructable_texts
+    )
     reconstructable_embeddings = memories_features[recognitions]
 
+    # Get metrics from recalled texts
     samples, summary = text_reconstruction_metrics(
         model=transformer,
         device=device,
         original_texts=reconstructable_texts,
+        cue_texts=reconstructable_cues,
         embeddings=reconstructable_embeddings,
     )
 
     for sample, original_index in zip(samples, recognized_indices):
         sample["index"] = int(original_index)
-        sample["recognized"] = True
         sample["weight"] = (
             float(weights[original_index])
             if np.isscalar(weights[original_index])
@@ -452,8 +546,7 @@ def create_text_memories(cfg, n_saved, device, experiments_root):
             "recognized_count": int(np.sum(recognitions)),
             "unrecognized_count": int(total - np.sum(recognitions)),
             "samples": int(total),
-        },
-        "summary": summary,
+        }
     }
 
     metrics_path = output_path / "metrics.json"
@@ -475,6 +568,7 @@ def text_reconstruction_metrics(
     device,
     original_texts,
     embeddings,
+    cue_texts=None,
     batch_size=32,
 ):
     """
@@ -489,6 +583,10 @@ def text_reconstruction_metrics(
         }
 
     original_texts = [str(text) for text in original_texts]
+    cue_texts = original_texts if cue_texts is None else [str(text) for text in cue_texts]
+
+    if len(cue_texts) != len(original_texts):
+        raise ValueError("cue_texts and original_texts must have the same length")
 
     if getattr(device, "type", None) == "mps":
         device = torch.device("cpu")
@@ -532,7 +630,7 @@ def text_reconstruction_metrics(
 
     samples = []
     for index, (original, cue, reconstructed, cosine, l2) in enumerate(
-        zip(original_texts, original_texts, reconstructed_texts, cosine_scores, l2_scores)
+        zip(original_texts, cue_texts, reconstructed_texts, cosine_scores, l2_scores)
     ):
         samples.append(
             {
@@ -560,10 +658,11 @@ def text_reconstruction_metrics(
     return samples, summary
 
 
-def get_besttext_params(cfg, config, device, EXPERIMENTS_ROOT):
+def get_besttext_params(cfg, config, device, EXPERIMENTS_ROOT, use_noise=False):
     from omegaconf import ListConfig
 
     global_results = []
+    noise_suffix = f"_noise_{cfg.app.noise}" if use_noise else ""
 
     msizes = cfg.memory.domain
     filling_percents = cfg.memory.filling
@@ -635,10 +734,17 @@ def get_besttext_params(cfg, config, device, EXPERIMENTS_ROOT):
     for latent in cfg.neural.latent_dim:
         path = get_experiment_path(cfg, EXPERIMENTS_ROOT, latent)
         embeddings_dataset = load_embeddings_dataset(path, device)
+        if use_noise:
+            noised_embeddings_dataset = load_embeddings_dataset(
+                path,
+                device,
+                noised=True,
+            )
 
         dataset = TextDatasetWrapper(
             dataset_name=cfg.app.dataset,
             column=cfg.app.column,
+            seed=cfg.app.seed,
         )
 
         transformer = create_sonar_model(device)
@@ -695,7 +801,11 @@ def get_besttext_params(cfg, config, device, EXPERIMENTS_ROOT):
                                     unrecognized,
                                 ) = evalm_text(
                                     eam,
-                                    dataset=embeddings_dataset.test,
+                                    dataset=(
+                                        noised_embeddings_dataset.test
+                                        if use_noise
+                                        else embeddings_dataset.test
+                                    ),
                                     quantizer=quantizer,
                                     batch_size=batch_size,
                                 )
@@ -707,6 +817,8 @@ def get_besttext_params(cfg, config, device, EXPERIMENTS_ROOT):
                                     if is_recognized
                                 ]
 
+
+                                # Obtain reconstruction metrics for the recognized texts and their corresponding embeddings
                                 _, summary = text_reconstruction_metrics(
                                     model=transformer,
                                     device=device,
@@ -730,6 +842,8 @@ def get_besttext_params(cfg, config, device, EXPERIMENTS_ROOT):
                                         "mean_edit_distance": summary["mean_edit_distance"],
                                     }
                                 )
+
+                                
                                 progress.update(
                                     kappa_task,
                                     advance=1,
@@ -757,22 +871,22 @@ def get_besttext_params(cfg, config, device, EXPERIMENTS_ROOT):
                 description=f"[green]Memory Size: {msize}",
             )
 
+            path = get_experiment_path(cfg, EXPERIMENTS_ROOT, latent)
+            save_path = path / f"{latent}_parameters_search_results{noise_suffix}.partial.json"
+            click.echo(f"[INFO] Saving results to: {save_path}")
+            with open(save_path, "w") as f:
+                json.dump(global_results, f, indent=4)
+
         progress.reset(msize_task)
         global_results.extend(results)
         progress.update(
             latent_task, advance=1, description=f"[magenta]Latent: {latent}"
         )
 
-        path = get_experiment_path(cfg, EXPERIMENTS_ROOT, latent)
-        save_path = path / f"{latent}_parameters_search_results.partial.json"
-        click.echo(f"[INFO] Saving results to: {save_path}")
-        with open(save_path, "w") as f:
-            json.dump(global_results, f, indent=4)
-
     progress.stop()
 
     path = get_experiment_path(cfg, EXPERIMENTS_ROOT, latent)
-    save_path = path / "global_memories_results.json"
+    save_path = path / f"global_memories_results{noise_suffix}.json"
     click.echo(f"[INFO] Saving results to: {save_path}")
     with open(save_path, "w") as f:
         json.dump(global_results, f, indent=4)
@@ -796,7 +910,9 @@ def get_besttext_params(cfg, config, device, EXPERIMENTS_ROOT):
     cfg.memory.kappa = float(best_params["kappa"])
 
     config_path = Path(config)
-    best_config_path = config_path.with_name(f"{config_path.stem}.best{config_path.suffix}")
+    best_config_path = config_path.with_name(
+        f"{config_path.stem}.best{noise_suffix}{config_path.suffix}"
+    )
     click.echo(
         f"[INFO] Saving updated config with best parameters to: {best_config_path}"
     )

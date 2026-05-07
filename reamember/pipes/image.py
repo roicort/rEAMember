@@ -86,6 +86,7 @@ def get_bestimage_params(
 
 		dataset = ImageDatasetWrapper(
 			dataset_name=cfg.app.dataset,
+			seed=cfg.app.seed,
 		)
 
 		input_shape = dataset.train[0][0].shape
@@ -230,6 +231,7 @@ def test_image_encoder(cfg, n, device, experiments_root):
 
 	dataset = ImageDatasetWrapper(
 		dataset_name=cfg.app.dataset,
+		seed=cfg.app.seed,
 	)
 
 	input_shape = dataset.test[0][0].shape
@@ -278,6 +280,7 @@ def create_image_memories(cfg, n_saved, device, experiments_root):
 
 	dataset = ImageDatasetWrapper(
 		dataset_name=cfg.app.dataset,
+		seed=cfg.app.seed,
 	)
 
 	input_shape = dataset.train[0][0].shape

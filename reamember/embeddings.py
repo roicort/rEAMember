@@ -61,7 +61,7 @@ def get_embeddings(
     dataset,
     device,
     modality="image",
-    save_path=None,
+    save_path=Path("embeddings.pth"),
     batch_size=32,
     num_workers=2,
 ):
@@ -70,7 +70,7 @@ def get_embeddings(
     Crea internamente el DataLoader para asegurar el batch correcto.
     """
 
-    if not os.path.exists(save_path / "embeddings.pth"):
+    if not os.path.exists(save_path):
         dataloader_train = DataLoader(
             dataset.train, batch_size=batch_size, shuffle=False, num_workers=num_workers
         )
@@ -78,7 +78,7 @@ def get_embeddings(
             dataset.test, batch_size=batch_size, shuffle=False, num_workers=num_workers
         )
 
-        print(f"[INFO] Not found embeddings at: {save_path / 'embeddings.pth'}, extracting...")
+        print(f"[INFO] Not found embeddings at: {save_path}, extracting...")
 
         if modality == "text":
             model.eval()
@@ -107,9 +107,10 @@ def get_embeddings(
         )
 
         if save_path is not None:
-            save_path.mkdir(parents=True, exist_ok=True)
+            save_path = Path(save_path)
+            save_path.parent.mkdir(parents=True, exist_ok=True)
             print(f"[INFO] Saving embeddings in: {save_path}")
-            torch.save(embedding_dataset, save_path / "embeddings.pth")
+            torch.save(embedding_dataset, save_path)
 
             try:
                 dataset_name = getattr(
@@ -156,7 +157,7 @@ def get_embeddings(
     # Load embeddings with labels for plotting
     from reamember.datasets.embedding import EmbeddingDatasetWrapper, EmbeddingDataset
     torch.serialization.add_safe_globals([EmbeddingDatasetWrapper, EmbeddingDataset])
-    embedding_dataset = torch.load(save_path / "embeddings.pth")
+    embedding_dataset = torch.load(save_path)
 
     # Plot PCA embeddings using plotly
 
@@ -183,5 +184,6 @@ def get_embeddings(
         title="PCA Embeddings",
     )
     fig.update_layout(width=3840, height=2160)
-    fig.write_html(save_path / "embeddings_pca.html")
-    fig.write_image(save_path / "embeddings_pca.png")
+    save_path = Path(save_path)
+    fig.write_html(str(save_path.with_name(f"{save_path.stem}_pca.html")))
+    fig.write_image(str(save_path.with_name(f"{save_path.stem}_pca.png")))

@@ -2,6 +2,8 @@ app:
   dataset: npvinHnivqn/EnglishDictionary
   column: word
   modality: text
+  seed: 42
+  noise: 0.1
 
 neural:
   latent_dim: [1024]

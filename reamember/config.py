@@ -1,10 +1,12 @@
 import os
+import random
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 from typing import Any
 from numbers import Real
 
+import numpy as np
 import torch
 from omegaconf import DictConfig, ListConfig, MISSING, OmegaConf
 from tqdm import tqdm
@@ -26,6 +28,8 @@ class AppConfig:
     dataset: str = MISSING
     modality: Modality = MISSING
     column: str | None = None
+    seed: int = 42
+    noise: float | None = 0.0
     crossval: CrossValConfig = field(default_factory=CrossValConfig)
 
 
@@ -119,8 +123,12 @@ def _validate_runtime_config(cfg: DictConfig) -> None:
 
     if cfg.app.crossval.folds <= 1:
         raise ValueError("app.crossval.folds must be greater than 1")
+    if cfg.app.seed < 0:
+        raise ValueError("app.seed must be greater than or equal to 0")
     if cfg.app.crossval.seed < 0:
         raise ValueError("app.crossval.seed must be greater than or equal to 0")
+    if cfg.app.noise is not None and (cfg.app.noise < 0 or cfg.app.noise > 1):
+        raise ValueError("app.noise must be in the range [0, 1]")
     if cfg.memory.noise_level is not None and cfg.memory.noise_level < 0:
         raise ValueError("memory.noise_level must be greater than or equal to 0")
     if isinstance(cfg.memory.batch_size, (list, tuple, ListConfig)):
@@ -148,6 +156,17 @@ def loadValConfig(config_path: str | os.PathLike[str]) -> DictConfig:
     OmegaConf.to_container(cfg, resolve=True, throw_on_missing=True)
     _validate_runtime_config(cfg)
     return cfg
+
+
+def setGlobalSeed(seed: int) -> None:
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
 
 def setDeviceConfig():
     """

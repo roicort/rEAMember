@@ -147,11 +147,11 @@ def get_experiment_path(cfg, EXPERIMENTS_ROOT, latent=None):
         return dataset_path / f"latent_{latent}"
 
 
-def load_embeddings_dataset(experiment_path, device):
+def load_embeddings_dataset(experiment_path, device, noised=False):
     """
     Load the cached embeddings dataset from an experiment directory.
     """
-    embeddings_path = Path(experiment_path) / "embeddings.pth"
+    embeddings_path = Path(experiment_path) / ("embeddings_noised.pth" if noised else "embeddings.pth")
     try:
         click.echo(f"[INFO] Loading embeddings dataset from: {embeddings_path}")
         return torch.load(embeddings_path, map_location=device, weights_only=False)

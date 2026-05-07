@@ -24,7 +24,7 @@ from plotly import graph_objects as go
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
 from tqdm import tqdm
 
-from reamember.config import loadValConfig, setDeviceConfig
+from reamember.config import loadValConfig, setDeviceConfig, setGlobalSeed
 
 
 from reamember.utils import (
@@ -53,7 +53,9 @@ LOGS_PATH = Path("logs")
 
 def load_cli_config(config):
     try:
-        return loadValConfig(config)
+        cfg = loadValConfig(config)
+        setGlobalSeed(int(cfg.app.seed))
+        return cfg
     except Exception as exc:
         raise click.ClickException(
             f"Invalid configuration '{config}': {exc}"
@@ -101,6 +103,7 @@ def train_encoder(config):
 
             dataset = ImageDatasetWrapper(
                 dataset_name=cfg.app.dataset,
+                seed=cfg.app.seed,
             )
 
             input_shape = dataset.train[0][0].shape
@@ -183,6 +186,7 @@ def get_embeddings(config):
 
             dataset = ImageDatasetWrapper(
                 dataset_name=cfg.app.dataset,
+                seed=cfg.app.seed,
             )
 
             input_shape = dataset.train[0][0].shape
@@ -332,7 +336,7 @@ def test_recall(config):
 @click.option(
     "--noise",
     is_flag=True,
-    help="Use cfg.memory.noise_level when evaluating text reconstruction.",
+    help="Use cfg.app.noise_level when evaluating text reconstruction.",
 )
 def get_bestparams(config, noise):
     "🔍 Search best memory sizes and filling percents."
@@ -376,26 +380,24 @@ def create_memories(config, n, noise):
     config_summary(cfg)
 
     if cfg.app.modality == "image":
-        with task_status("Creating image memories"):
-            from reamember.pipes.image import create_image_memories
+        from reamember.pipes.image import create_image_memories
 
-            create_image_memories(
-                cfg,
-                n_saved=n,
-                device=device,
-                experiments_root=EXPERIMENTS_ROOT,
-            )
+        create_image_memories(
+            cfg,
+            n_saved=n,
+            device=device,
+            experiments_root=EXPERIMENTS_ROOT,
+        )
     elif cfg.app.modality == "text":
-        with task_status("Creating text memories"):
-            from reamember.pipes.text import create_text_memories
+        from reamember.pipes.text import create_text_memories
 
-            create_text_memories(
-                cfg,
-                n_saved=n,
-                use_noise=noise,
-                device=device,
-                experiments_root=EXPERIMENTS_ROOT,
-            )
+        create_text_memories(
+            cfg,
+            n_saved=n,
+            use_noise=noise,
+            device=device,
+            experiments_root=EXPERIMENTS_ROOT,
+        )
 
 
 @cli.command()
