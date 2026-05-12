@@ -2,7 +2,7 @@ import torch
 import numpy as np
 import pandas as pd
 import json
-import re
+import math
 from nltk.metrics import edit_distance
 from tqdm import tqdm
 from plotly import graph_objects as go
@@ -54,37 +54,51 @@ def create_sonar_model(runtime_device):
     return SONAR(device=runtime_device)
 
 
-def random_text_mask(text, character_mask='#'):
-    text = str(text)
-    tokens = list(re.finditer(r"\S+", text))
+def normalize_noise_level(noise_level):
+    noise_level = float(noise_level)
+    if noise_level < 0:
+        return 0.0
+    if noise_level > 1:
+        noise_level /= 100.0
+    return min(noise_level, 1.0)
 
-    if not tokens:
+
+def apply_text_noise(text, noise_level=0.1, character_mask='_'):
+    text = str(text).strip()
+    if not text:
         return text
 
-    if len(tokens) > 1:
-        selected = tokens[np.random.randint(len(tokens))]
-        start, end = selected.span()
-        return f"{text[:start]}{character_mask * (end - start)}{text[end:]}"
+    normalized_noise = normalize_noise_level(noise_level)
+    if normalized_noise <= 0:
+        return text
 
-    token = tokens[0]
-    start, end = token.span()
-    word = token.group(0)
     replaceable_positions = [
-        index for index, char in enumerate(word) if char.isalpha()
+        index for index, char in enumerate(text) if char.isalpha()
     ]
     if not replaceable_positions:
-        replaceable_positions = list(range(len(word)))
+        replaceable_positions = [
+            index for index, char in enumerate(text) if not char.isspace()
+        ]
+    if not replaceable_positions:
+        return text
 
-    mask = np.random.rand(len(replaceable_positions)) > 0.5
-    if not mask.any():
-        mask[np.random.randint(len(replaceable_positions))] = True
+    n_positions = len(replaceable_positions)
+    n_to_mask = min(
+        n_positions,
+        max(1, math.ceil(n_positions * normalized_noise)),
+    )
+    selected_positions = np.random.choice(
+        replaceable_positions,
+        size=n_to_mask,
+        replace=False,
+    )
 
-    masked_word = list(word)
-    for should_mask, position in zip(mask, replaceable_positions):
-        if should_mask:
-            masked_word[position] = character_mask
+    masked_text = list(text)
+    for position in selected_positions:
+        masked_text[position] = character_mask
 
-    return f"{text[:start]}{''.join(masked_word)}{text[end:]}"
+    return ''.join(masked_text)
+
 
 def test_recall(cfg, device, experiments_root):
 
@@ -388,15 +402,14 @@ def get_text_embeddings(cfg, device, experiments_root):
     )
 
     if cfg.app.noise is not None and cfg.app.noise > 0:
-        # Add mask to the embeddings 
         file_embeddings_path = path / "embeddings_noised.pth"
-        noise_level = float(get_scalar_config_value(cfg.app.noise))
+        noise_level = normalize_noise_level(get_scalar_config_value(cfg.app.noise))
         noised_train_texts = [
-            text if np.random.rand() > noise_level else random_text_mask(text)
+            apply_text_noise(text, noise_level=noise_level)
             for text in (dataset.train[index] for index in range(len(dataset.train)))
         ]
         noised_test_texts = [
-            text if np.random.rand() > noise_level else random_text_mask(text)
+            apply_text_noise(text, noise_level=noise_level)
             for text in (dataset.test[index] for index in range(len(dataset.test)))
         ]
         noised_dataset = TextDatasetWrapper(
@@ -976,6 +989,13 @@ def interactive_memory(cfg, device, experiments_root):
             f"iota={eam_instance.iota:.4f}, kappa={eam_instance.kappa:.4f}."
         )
 
+    def apply_noise_to_cue(cue):
+        cue = str(cue).strip()
+        if not cue:
+            return ""
+
+        return apply_text_noise(cue, noise_level=get_scalar_config_value(cfg.app.noise or 0.5))
+
     def interactive_recall(cue, eam_instance, progress=gr.Progress()):
         cue = str(cue).strip()
         if not cue:
@@ -1049,6 +1069,7 @@ def interactive_memory(cfg, device, experiments_root):
             label="Texto de entrada",
             placeholder="Escribe una frase para consultar la memoria",
         )
+        noise_button = gr.Button("Aplicar ruido al texto")
         recall_button = gr.Button("Consultar memoria")
         recalled_output = gr.Textbox(label="Texto recordado")
         recall_status = gr.Markdown(label="Estado")
@@ -1057,6 +1078,12 @@ def interactive_memory(cfg, device, experiments_root):
             fn=update_memory_params,
             inputs=[memory_state, xi_input, sigma_input, iota_input, kappa_input],
             outputs=[memory_state, memory_status],
+        )
+
+        noise_button.click(
+            fn=apply_noise_to_cue,
+            inputs=[cue_input],
+            outputs=[cue_input],
         )
 
         recall_button.click(
