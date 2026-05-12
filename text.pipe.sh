@@ -2,6 +2,8 @@
 
 CONFIG="./config/dictionary-def.yml"
 TIMES_FILE="${CONFIG/.yml/.times.txt}"
+BSTCONFIG="${CONFIG/.yml/.best.yml}"
+BNCONFIG="${CONFIG/.yml/.best.noise.yml}"
 
 set -e
 
@@ -28,10 +30,7 @@ timeit "uv run manage.py encoder test --config $CONFIG --n 100" "encoder test"
 timeit "uv run manage.py test-recall --config $CONFIG" "test-recall"
 timeit "uv run manage.py get-bestparams --config $CONFIG" "get-bestparams"
 timeit "uv run manage.py get-bestparams --config $CONFIG --noise" "get-bestparams"
+timeit "uv run manage.py create-memories --config $BSTCONFIG --n 1000" "create-memories"
+timeit "uv run manage.py create-memories --config $BNCONFIG --noise --n 1000" "create-memories"
 
-CONFIG="${CONFIG/.yml/.best.yml}"
-#CONFIG="${CONFIG/.yml/.best.noise.yml}"
-
-timeit "uv run manage.py plot --config $CONFIG" "plot"
-timeit "uv run manage.py create-memories --config $CONFIG --n 1000" "create-memories"
-timeit "uv run manage.py create-memories --config $CONFIG --noise --n 1000" "create-memories"
+uv run manage.py interactive --config $BSTCONFIG
