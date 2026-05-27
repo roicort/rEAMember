@@ -319,14 +319,24 @@ def test_classifier_command(config):
 # Memory Commands
 @cli.command()
 @click.option("--config", help="YAML configuration.")
-def test_recall(config):
+@click.option(
+    "--noise",
+    is_flag=True,
+    help="Use noised test embeddings if available for text recall evaluation.",
+)
+def test_recall(config, noise):
     "🔍 Test recall with distinct params"
     cfg = load_cli_config(config)
     config_summary(cfg)
 
     if cfg.app.modality == "text":
         from reamember.pipes.text import test_recall
-        test_recall(cfg, device=device, experiments_root=EXPERIMENTS_ROOT)
+        test_recall(
+            cfg,
+            device=device,
+            experiments_root=EXPERIMENTS_ROOT,
+            use_noise=noise,
+        )
         return
     else:
         raise NotImplementedError("Recall testing is only implemented for text modality.")

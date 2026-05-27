@@ -3,7 +3,7 @@
 CONFIG="./config/dictionary-def.yml"
 TIMES_FILE="${CONFIG/.yml/.times.txt}"
 BSTCONFIG="${CONFIG/.yml/.best.yml}"
-BNCONFIG="${CONFIG/.yml/.best.noise.yml}"
+BSTNCONFIG="${CONFIG/.yml/.best.noise.yml}"
 
 set -e
 
@@ -28,9 +28,12 @@ function timeit() {
 timeit "uv run manage.py get-embeddings --config $CONFIG" "get-embeddings"
 timeit "uv run manage.py encoder test --config $CONFIG --n 100" "encoder test"
 timeit "uv run manage.py test-recall --config $CONFIG" "test-recall"
-timeit "uv run manage.py get-bestparams --config $CONFIG" "get-bestparams"
-timeit "uv run manage.py get-bestparams --config $CONFIG --noise" "get-bestparams"
-timeit "uv run manage.py create-memories --config $BSTCONFIG --n 1000" "create-memories"
-timeit "uv run manage.py create-memories --config $BNCONFIG --noise --n 1000" "create-memories"
+timeit "uv run manage.py test-recall --config $CONFIG --noise" "test-recall noise"
 
-uv run manage.py interactive --config $BSTCONFIG
+timeit "uv run manage.py get-bestparams --config $CONFIG" "get-bestparams"
+timeit "uv run manage.py get-bestparams --config $CONFIG --noise" "get-bestparams noise"
+
+timeit "uv run manage.py create-memories --config $BSTCONFIG --n 1000" "create-memories"
+timeit "uv run manage.py create-memories --config $BSTNCONFIG --noise --n 1000" "create-memories noise"
+
+#uv run manage.py interactive --config $BSTCONFIG

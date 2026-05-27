@@ -27,4 +27,5 @@ dependencies = [
     "tqdm>=4.67.3",
     "nltk>=3.9.4",
     "gradio>=6.14.0",
+    "ipywidgets>=8.1.8",
 ]

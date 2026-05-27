@@ -177,7 +177,7 @@ def load_model_state(model, model_path, label, device, move_to_device=True):
     return model
 
 
-def decode_text_embeddings(model, embeddings, device=None, batch_size=32):
+def decode_text_embeddings(model, embeddings, device=None, batch_size=64):
     """
     Decode embeddings into text batches using SONAR.
     """

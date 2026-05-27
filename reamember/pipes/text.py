@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd
 import json
 import math
+import string
 from nltk.metrics import edit_distance
 from tqdm import tqdm
 from plotly import graph_objects as go
@@ -63,7 +64,19 @@ def normalize_noise_level(noise_level):
     return min(noise_level, 1.0)
 
 
-def apply_text_noise(text, noise_level=0.1, character_mask='_'):
+def get_random_replacement_char(original_char):
+    if str(original_char).isupper():
+        alphabet = string.ascii_uppercase
+        original = str(original_char).upper()
+    else:
+        alphabet = string.ascii_lowercase
+        original = str(original_char).lower()
+
+    candidates = [char for char in alphabet if char != original]
+    return str(np.random.choice(candidates))
+
+
+def apply_text_noise(text, noise_level=0.1, character_mask=None):
     text = str(text).strip()
     if not text:
         return text
@@ -95,25 +108,61 @@ def apply_text_noise(text, noise_level=0.1, character_mask='_'):
 
     masked_text = list(text)
     for position in selected_positions:
-        masked_text[position] = character_mask
+        masked_text[position] = (
+            get_random_replacement_char(masked_text[position])
+            if character_mask is None
+            else character_mask
+        )
 
     return ''.join(masked_text)
 
 
-def test_recall(cfg, device, experiments_root):
+def test_recall(cfg, device, experiments_root, use_noise=False):
 
     latent = cfg.neural.latent_dim[0] if isinstance(cfg.neural.latent_dim, ListConfig) else int(cfg.neural.latent_dim)
 
     path = get_experiment_path(cfg, experiments_root, latent)
     embeddings_dataset = load_embeddings_dataset(path, device=device)
+    recognition_dirname = "recognition"
+
+    if use_noise:
+        embeddings_dataset_noise = load_embeddings_dataset(
+            path,
+            device=device,
+            noised=True,
+        )
+        recognition_dirname = f"recognition_noise_{cfg.app.noise}"
+        quant_source = torch.cat([embeddings_dataset.train.data, embeddings_dataset_noise.train.data, embeddings_dataset_noise.test.data], dim=0)
+        test_embeddings_dataset = embeddings_dataset_noise
+
+        memory_wrapper = EmbeddingDatasetWrapper(
+            train=embeddings_dataset.train.data,
+            test=embeddings_dataset_noise.train.data,
+        ) # Fill memory with clean train and evaluate on noised train for seen/unseen evaluation, using noised test for final test evaluation
+        
+        seen_source = "clean_train"
+        unseen_source = "noised_train"
+        test_source = "noised_test"
+
+    else:
+        test_embeddings_dataset = embeddings_dataset
+        quant_source = torch.cat([embeddings_dataset.train.data, embeddings_dataset.test.data], dim=0)
+        train_embeddings = embeddings_dataset.train.data
+        split_index = max(1, len(train_embeddings) // 2) # Split train into two halves for seen/unseen evaluation, ensuring at least one sample in the seen half
+        memory_wrapper = EmbeddingDatasetWrapper(
+            train=train_embeddings[:split_index],
+            test=train_embeddings[split_index:],
+        ) # Fill memory with first half of train and evaluate on second half of train for seen/unseen evaluation, using test for final test evaluation
+        
+        seen_source = "first_half_of_train"
+        unseen_source = "second_half_of_train"
+        test_source = "test"
+
+    quantizer = Quant( quant_source ) # Create quantizer with train + test
 
     # First Experiment: Test Recognition Rates
 
-    recognition_text_path = ensure_directory(path / "recognition")
-
-    quantizer = Quant(
-        torch.cat([embeddings_dataset.train.data, embeddings_dataset.test.data], dim=0)
-    ) # Create quantizer with train + test
+    recognition_text_path = ensure_directory(path / recognition_dirname)
 
     domains = (
         [int(domain) for domain in cfg.memory.domain]
@@ -141,18 +190,14 @@ def test_recall(cfg, device, experiments_root):
         else [float(cfg.memory.sigma)]
     )
 
-    print(f"[INFO] Testing recall with latent={latent}, domains={domains}, sigmas={sigmas}, xis={xis}, iotas={iotas}, kappas={kappas}")
-
-    train_embeddings = embeddings_dataset.train.data
-    split_index = max(1, len(train_embeddings) // 2) # Split train into two halves for seen/unseen evaluation, ensuring at least one sample in the seen half
-    memory_wrapper = EmbeddingDatasetWrapper(
-        train=train_embeddings[:split_index],
-        test=train_embeddings[split_index:],
-    ) # Create a wrapper to hold the split train embeddings for memory filling and evaluation
+    print(
+        f"[INFO] Testing recall with latent={latent}, domains={domains}, sigmas={sigmas}, "
+        f"xis={xis}, iotas={iotas}, kappas={kappas}, use_noise={use_noise}"
+    )
 
     confusion_summaries = [] # Prepare to collect confusion summaries for all domains
     confusion_summary_path = (
-        recognition_text_path / "recognition_confusion_summary.json"
+        recognition_text_path / f"recognition_confusion_summary_{use_noise}.json"
     )
 
     from rich.progress import (
@@ -210,7 +255,7 @@ def test_recall(cfg, device, experiments_root):
                                 kappa=kappa,
                             )
 
-                            # Fill with the first half of the training dataset
+                            # Memorize using the specified memory parameters, quantizer built from train + test and the appropriate train split for seen/unseen evaluation
                             eam = memorize(
                                 eam,
                                 dataset=memory_wrapper.train,
@@ -223,7 +268,7 @@ def test_recall(cfg, device, experiments_root):
                                 eam,
                                 seen_dataset=memory_wrapper.train,
                                 unseen_dataset=memory_wrapper.test,
-                                test_dataset=embeddings_dataset.test,
+                                test_dataset=test_embeddings_dataset.test,
                                 quantizer=quantizer,
                                 batch_size=batch_size,
                             )
@@ -236,9 +281,9 @@ def test_recall(cfg, device, experiments_root):
                                 "iota": iota,
                                 "kappa": kappa,
                                 "xi": xi,
-                                "seen_source": "first_half_of_train",
-                                "unseen_source": "second_half_of_train",
-                                "test_source": "dataset_test_split",
+                                "seen_source": seen_source,
+                                "unseen_source": unseen_source,
+                                "test_source": test_source,
                                 "labels": confusion["labels"],
                                 "matrix": confusion["matrix"].tolist(),
                                 "counts": confusion["counts"],
@@ -282,6 +327,10 @@ def test_recall(cfg, device, experiments_root):
                             fig.write_image(
                                 recognition_text_path
                                 / f"recognition_confusion_domain_{domain}_sigma_{sigma}_xi_{xi}_iota_{iota}_kappa_{kappa}.svg"
+                            )
+                            fig.write_image(
+                                recognition_text_path
+                                / f"recognition_confusion_domain_{domain}_sigma_{sigma}_xi_{xi}_iota_{iota}_kappa_{kappa}.png"
                             )
                             click.echo(
                                 f"[INFO] Recognition rates (m={domain}) | seen recognized: {confusion['rates']['seen_recognized_rate']:.4f} "
@@ -341,29 +390,34 @@ def test_text_encoder(cfg, n_examples, device, experiments_root):
     reconstructed_text_path = ensure_directory(path / "reconstructed")
     total_test = len(embeddings_dataset.test.data)
     original_test_texts = [str(text) for text in dataset.test.texts[:total_test]]
-    test_embeddings = embeddings_dataset.test.data[:total_test]
-    
-    # Seconda Experiment: Test embeddings without memory recall to evaluate the quality of the autoencoder independently
-    samples, summary = text_reconstruction_metrics(
+
+    click.echo(
+        f"[INFO] Evaluating reconstruction with latent={latent}, source=dataset_test_split"
+    )
+    clean_samples, clean_summary = text_reconstruction_metrics(
         model=transformer,
         device=device,
         original_texts=original_test_texts,
-        embeddings=test_embeddings,
+        embeddings=embeddings_dataset.test.data[:total_test],
         batch_size=64,
     )
+    saved_clean_samples = (
+        clean_samples if n_examples == 0 else clean_samples[:n_examples]
+    )
 
-    reconstructed_samples_path = reconstructed_text_path / "reconstructed.json"
-    with open(reconstructed_samples_path, "w", encoding="utf-8") as f_out:
-        json.dump(samples, f_out, indent=4, ensure_ascii=False)
+    clean_reconstructed_path = reconstructed_text_path / "reconstructed.json"
+    with open(clean_reconstructed_path, "w", encoding="utf-8") as f_out:
+        json.dump(saved_clean_samples, f_out, indent=4, ensure_ascii=False)
 
-    metrics_path = reconstructed_text_path / "metrics.json"
-    with open(metrics_path, "w", encoding="utf-8") as f_out:
+    clean_metrics_path = reconstructed_text_path / "metrics.json"
+    with open(clean_metrics_path, "w", encoding="utf-8") as f_out:
         json.dump(
             {
                 "dataset": cfg.app.dataset,
                 "latent_dim": int(latent),
-                "summary": summary,
-                "samples": samples,
+                "source": "dataset_test_split",
+                "summary": clean_summary,
+                "samples": saved_clean_samples,
             },
             f_out,
             indent=4,
@@ -371,13 +425,123 @@ def test_text_encoder(cfg, n_examples, device, experiments_root):
         )
 
     click.echo(
-        f"[INFO] Reconstruction metrics | cosine: {summary['mean_cosine']:.4f} "
-        f"| l2: {summary['mean_l2']:.4f} "
-        f"| edit distance: {summary['mean_edit_distance']:.4f}"
+        f"[INFO] Reconstruction metrics | cosine: {clean_summary['mean_cosine']:.4f} "
+        f"| l2: {clean_summary['mean_l2']:.4f} "
+        f"| edit distance: {clean_summary['mean_edit_distance']:.4f}"
     )
+    click.echo(f"[INFO] Reconstructed texts saved to: {clean_reconstructed_path}")
+    click.echo(f"[INFO] Reconstruction metrics saved to: {clean_metrics_path}")
 
-    click.echo(f"[INFO] Reconstructed texts saved to: {reconstructed_samples_path}")
-    click.echo(f"[INFO] Reconstruction metrics saved to: {metrics_path}")
+    noise_samples = None
+    noise_summary = None
+    if cfg.app.noise is not None and float(cfg.app.noise) > 0:
+        noised_embeddings_dataset = load_embeddings_dataset(
+            path,
+            device=device,
+            noised=True,
+        )
+        noised_test_texts = np.load(
+            path / "noised_test_texts.npy",
+            allow_pickle=True,
+        ).tolist()[:total_test]
+
+        reconstructed_noise_path = ensure_directory(
+            path / f"reconstructed_noise_{cfg.app.noise}"
+        )
+
+        click.echo(
+            f"[INFO] Evaluating reconstruction with latent={latent}, source=noised_dataset_test_split"
+        )
+        noise_samples, noise_summary = text_reconstruction_metrics(
+            model=transformer,
+            device=device,
+            original_texts=noised_test_texts,
+            embeddings=noised_embeddings_dataset.test.data[:total_test],
+            batch_size=64,
+        )
+        saved_noise_samples = (
+            noise_samples if n_examples == 0 else noise_samples[:n_examples]
+        )
+
+        noise_reconstructed_path = reconstructed_noise_path / "reconstructed.json"
+        with open(noise_reconstructed_path, "w", encoding="utf-8") as f_out:
+            json.dump(saved_noise_samples, f_out, indent=4, ensure_ascii=False)
+
+        noise_metrics_path = reconstructed_noise_path / "metrics.json"
+        with open(noise_metrics_path, "w", encoding="utf-8") as f_out:
+            json.dump(
+                {
+                    "dataset": cfg.app.dataset,
+                    "latent_dim": int(latent),
+                    "source": "noised_dataset_test_split",
+                    "summary": noise_summary,
+                    "samples": saved_noise_samples,
+                },
+                f_out,
+                indent=4,
+                ensure_ascii=False,
+            )
+
+        click.echo(
+            f"[INFO] Reconstruction metrics | cosine: {noise_summary['mean_cosine']:.4f} "
+            f"| l2: {noise_summary['mean_l2']:.4f} "
+            f"| edit distance: {noise_summary['mean_edit_distance']:.4f}"
+        )
+        click.echo(f"[INFO] Reconstructed texts saved to: {noise_reconstructed_path}")
+        click.echo(f"[INFO] Reconstruction metrics saved to: {noise_metrics_path}")
+
+    aligned_samples = []
+    for index, clean_sample in enumerate(clean_samples):
+        sample = {
+            "index": int(clean_sample["index"]),
+            "original": clean_sample["original"],
+            "clean": {
+                "cue": clean_sample["cue"],
+                "reconstructed": clean_sample["reconstructed"],
+                "cosine": clean_sample["cosine"],
+                "euclidean": clean_sample["euclidean"],
+                "l2": clean_sample["l2"],
+                "edit_distance": clean_sample["edit_distance"],
+            },
+        }
+
+        if noise_samples is not None:
+            noise_sample = noise_samples[index]
+            sample["noise"] = {
+                "cue": noise_sample["cue"],
+                "reconstructed": noise_sample["reconstructed"],
+                "cosine": noise_sample["cosine"],
+                "euclidean": noise_sample["euclidean"],
+                "l2": noise_sample["l2"],
+                "edit_distance": noise_sample["edit_distance"],
+            }
+
+        aligned_samples.append(sample)
+
+    saved_aligned_samples = (
+        aligned_samples if n_examples == 0 else aligned_samples[:n_examples]
+    )
+    aligned_samples_path = reconstructed_text_path / "reconstructed.json"
+    with open(aligned_samples_path, "w", encoding="utf-8") as f_out:
+        json.dump(saved_aligned_samples, f_out, indent=4, ensure_ascii=False)
+
+    aligned_metrics = {
+        "dataset": cfg.app.dataset,
+        "latent_dim": int(latent),
+        "summaries": {
+            "clean": clean_summary,
+        },
+        "samples": saved_aligned_samples,
+    }
+    if noise_summary is not None:
+        aligned_metrics["summaries"]["noise"] = noise_summary
+
+    aligned_metrics_path = reconstructed_text_path / "metrics.json"
+    with open(aligned_metrics_path, "w", encoding="utf-8") as f_out:
+        json.dump(aligned_metrics, f_out, indent=4, ensure_ascii=False)
+
+    click.echo(f"[INFO] Aligned reconstructed texts saved to: {aligned_samples_path}")
+    click.echo(f"[INFO] Aligned reconstruction metrics saved to: {aligned_metrics_path}")
 
 def get_text_embeddings(cfg, device, experiments_root):
     click.echo(f"[INFO] Loading dataset: {cfg.app.dataset}")
@@ -633,17 +797,18 @@ def text_reconstruction_metrics(
     reconstructed_embeddings = torch.cat(reconstructed_embeddings, dim=0)
     source_embeddings = source_embeddings.detach().cpu()
 
-    source_norm = torch.linalg.norm(source_embeddings, dim=1)
-    reconstructed_norm = torch.linalg.norm(reconstructed_embeddings, dim=1)
-    denom = torch.clamp(source_norm * reconstructed_norm, min=1e-12)
+    source_norm = torch.linalg.norm(source_embeddings, dim=1) # Compute norms for cosine similarity
+    reconstructed_norm = torch.linalg.norm(reconstructed_embeddings, dim=1) # Compute norms for cosine similarity
+    denom = torch.clamp(source_norm * reconstructed_norm, min=1e-12) # Avoid division by zero in cosine similarity calculation
     cosine_scores = (
         torch.sum(source_embeddings * reconstructed_embeddings, dim=1) / denom
-    )
-    l2_scores = torch.linalg.norm(source_embeddings - reconstructed_embeddings, dim=1)
+    ) # Get cosine similarity scores between source and reconstructed embeddings
+    l2_scores = torch.linalg.norm(source_embeddings - reconstructed_embeddings, dim=1) # Get L2 distance scores between source and reconstructed embeddings
+    euclidean_scores = torch.sqrt(torch.sum((source_embeddings - reconstructed_embeddings) ** 2, dim=1)) # Get Euclidean distance scores between source and reconstructed embeddings
 
     samples = []
-    for index, (original, cue, reconstructed, cosine, l2) in enumerate(
-        zip(original_texts, cue_texts, reconstructed_texts, cosine_scores, l2_scores)
+    for index, (original, cue, reconstructed, cosine, l2, euclidean) in enumerate(
+        zip(original_texts, cue_texts, reconstructed_texts, cosine_scores, l2_scores, euclidean_scores)
     ):
         samples.append(
             {
@@ -652,6 +817,7 @@ def text_reconstruction_metrics(
                 "cue": cue,
                 "reconstructed": reconstructed,
                 "cosine": float(cosine.item()),
+                "euclidean": float(euclidean.item()),
                 "l2": float(l2.item()),
                 "edit_distance": int(
                     edit_distance(original.lower(), reconstructed.lower())
@@ -662,6 +828,7 @@ def text_reconstruction_metrics(
     summary = {
         "samples": len(samples),
         "mean_cosine": float(np.mean([item["cosine"] for item in samples])),
+        "mean_euclidean": float(np.mean([item["euclidean"] for item in samples])),
         "mean_l2": float(np.mean([item["l2"] for item in samples])),
         "mean_edit_distance": float(
             np.mean([item["edit_distance"] for item in samples])
@@ -851,6 +1018,7 @@ def get_besttext_params(cfg, config, device, EXPERIMENTS_ROOT, use_noise=False):
                                         "recognized": recognized,
                                         "unrecognized": unrecognized,
                                         "mean_cosine": summary["mean_cosine"],
+                                        "mean_euclidean": summary["mean_euclidean"],
                                         "mean_l2": summary["mean_l2"],
                                         "mean_edit_distance": summary["mean_edit_distance"],
                                     }
