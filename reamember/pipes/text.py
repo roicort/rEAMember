@@ -401,36 +401,6 @@ def test_text_encoder(cfg, n_examples, device, experiments_root):
         embeddings=embeddings_dataset.test.data[:total_test],
         batch_size=64,
     )
-    saved_clean_samples = (
-        clean_samples if n_examples == 0 else clean_samples[:n_examples]
-    )
-
-    clean_reconstructed_path = reconstructed_text_path / "reconstructed.json"
-    with open(clean_reconstructed_path, "w", encoding="utf-8") as f_out:
-        json.dump(saved_clean_samples, f_out, indent=4, ensure_ascii=False)
-
-    clean_metrics_path = reconstructed_text_path / "metrics.json"
-    with open(clean_metrics_path, "w", encoding="utf-8") as f_out:
-        json.dump(
-            {
-                "dataset": cfg.app.dataset,
-                "latent_dim": int(latent),
-                "source": "dataset_test_split",
-                "summary": clean_summary,
-                "samples": saved_clean_samples,
-            },
-            f_out,
-            indent=4,
-            ensure_ascii=False,
-        )
-
-    click.echo(
-        f"[INFO] Reconstruction metrics | cosine: {clean_summary['mean_cosine']:.4f} "
-        f"| l2: {clean_summary['mean_l2']:.4f} "
-        f"| edit distance: {clean_summary['mean_edit_distance']:.4f}"
-    )
-    click.echo(f"[INFO] Reconstructed texts saved to: {clean_reconstructed_path}")
-    click.echo(f"[INFO] Reconstruction metrics saved to: {clean_metrics_path}")
 
     noise_samples = None
     noise_summary = None
@@ -445,10 +415,6 @@ def test_text_encoder(cfg, n_examples, device, experiments_root):
             allow_pickle=True,
         ).tolist()[:total_test]
 
-        reconstructed_noise_path = ensure_directory(
-            path / f"reconstructed_noise_{cfg.app.noise}"
-        )
-
         click.echo(
             f"[INFO] Evaluating reconstruction with latent={latent}, source=noised_dataset_test_split"
         )
@@ -459,36 +425,6 @@ def test_text_encoder(cfg, n_examples, device, experiments_root):
             embeddings=noised_embeddings_dataset.test.data[:total_test],
             batch_size=64,
         )
-        saved_noise_samples = (
-            noise_samples if n_examples == 0 else noise_samples[:n_examples]
-        )
-
-        noise_reconstructed_path = reconstructed_noise_path / "reconstructed.json"
-        with open(noise_reconstructed_path, "w", encoding="utf-8") as f_out:
-            json.dump(saved_noise_samples, f_out, indent=4, ensure_ascii=False)
-
-        noise_metrics_path = reconstructed_noise_path / "metrics.json"
-        with open(noise_metrics_path, "w", encoding="utf-8") as f_out:
-            json.dump(
-                {
-                    "dataset": cfg.app.dataset,
-                    "latent_dim": int(latent),
-                    "source": "noised_dataset_test_split",
-                    "summary": noise_summary,
-                    "samples": saved_noise_samples,
-                },
-                f_out,
-                indent=4,
-                ensure_ascii=False,
-            )
-
-        click.echo(
-            f"[INFO] Reconstruction metrics | cosine: {noise_summary['mean_cosine']:.4f} "
-            f"| l2: {noise_summary['mean_l2']:.4f} "
-            f"| edit distance: {noise_summary['mean_edit_distance']:.4f}"
-        )
-        click.echo(f"[INFO] Reconstructed texts saved to: {noise_reconstructed_path}")
-        click.echo(f"[INFO] Reconstruction metrics saved to: {noise_metrics_path}")
 
     aligned_samples = []
     for index, clean_sample in enumerate(clean_samples):
@@ -540,6 +476,17 @@ def test_text_encoder(cfg, n_examples, device, experiments_root):
     with open(aligned_metrics_path, "w", encoding="utf-8") as f_out:
         json.dump(aligned_metrics, f_out, indent=4, ensure_ascii=False)
 
+    click.echo(
+        f"[INFO] Reconstruction metrics | clean cosine: {clean_summary['mean_cosine']:.4f} "
+        f"| clean l2: {clean_summary['mean_l2']:.4f} "
+        f"| clean edit distance: {clean_summary['mean_edit_distance']:.4f}"
+    )
+    if noise_summary is not None:
+        click.echo(
+            f"[INFO] Reconstruction metrics | noise cosine: {noise_summary['mean_cosine']:.4f} "
+            f"| noise l2: {noise_summary['mean_l2']:.4f} "
+            f"| noise edit distance: {noise_summary['mean_edit_distance']:.4f}"
+        )
     click.echo(f"[INFO] Aligned reconstructed texts saved to: {aligned_samples_path}")
     click.echo(f"[INFO] Aligned reconstruction metrics saved to: {aligned_metrics_path}")
 
