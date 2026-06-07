@@ -457,7 +457,7 @@ def test_text_encoder(cfg, n_examples, device, experiments_root):
     saved_aligned_samples = (
         aligned_samples if n_examples == 0 else aligned_samples[:n_examples]
     )
-    aligned_samples_path = reconstructed_text_path / "reconstructed.json"
+    aligned_samples_path = reconstructed_text_path / "sonar_reconstructed.json"
     with open(aligned_samples_path, "w", encoding="utf-8") as f_out:
         json.dump(saved_aligned_samples, f_out, indent=4, ensure_ascii=False)
 
