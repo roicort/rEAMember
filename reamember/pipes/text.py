@@ -702,6 +702,7 @@ def text_reconstruction_metrics(
         return [], {
             "samples": 0,
             "mean_cosine": 0.0,
+            "mean_euclidean": 0.0,
             "mean_l2": 0.0,
             "mean_edit_distance": 0.0,
         }
