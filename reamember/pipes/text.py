@@ -861,6 +861,7 @@ def get_besttext_params(cfg, config, device, EXPERIMENTS_ROOT, use_noise=False):
 
     for latent in cfg.neural.latent_dim:
         path = get_experiment_path(cfg, EXPERIMENTS_ROOT, latent)
+        partial_save_path = path / f"{latent}_parameters_search_results{noise_suffix}.partial.json"
         embeddings_dataset = load_embeddings_dataset(path, device)
         if use_noise:
             noised_embeddings_dataset = load_embeddings_dataset(
@@ -972,6 +973,11 @@ def get_besttext_params(cfg, config, device, EXPERIMENTS_ROOT, use_noise=False):
                                     }
                                 )
 
+                                partial_results = global_results + results
+                                click.echo(f"[INFO] Saving results to: {partial_save_path}")
+                                with open(partial_save_path, "w") as f:
+                                    json.dump(partial_results, f, indent=4)
+
                                 
                                 progress.update(
                                     kappa_task,
@@ -999,12 +1005,6 @@ def get_besttext_params(cfg, config, device, EXPERIMENTS_ROOT, use_noise=False):
                 advance=1,
                 description=f"[green]Memory Size: {msize}",
             )
-
-            path = get_experiment_path(cfg, EXPERIMENTS_ROOT, latent)
-            save_path = path / f"{latent}_parameters_search_results{noise_suffix}.partial.json"
-            click.echo(f"[INFO] Saving results to: {save_path}")
-            with open(save_path, "w") as f:
-                json.dump(global_results, f, indent=4)
 
         progress.reset(msize_task)
         global_results.extend(results)
