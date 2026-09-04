@@ -1,0 +1,2002 @@
+[
+    {
+        "index": 0,
+        "original": "pleochroic.",
+        "clean": {
+            "cue": "pleochroic.",
+            "reconstructed": "pleochroic",
+            "cosine": 1.0,
+            "euclidean": 9.771372424438596e-05,
+            "l2": 9.771372424438596e-05,
+            "edit_distance": 1
+        },
+        "noise": {
+            "cue": "pleoahroic",
+            "reconstructed": "pleoahroic",
+            "cosine": 0.9999998807907104,
+            "euclidean": 9.442353621125221e-05,
+            "l2": 9.442353621125221e-05,
+            "edit_distance": 0
+        }
+    },
+    {
+        "index": 1,
+        "original": "to trust.-trust.-a post, or station, in hunting.-a secret meeting, or the place of such meeting; a tryst. see tryst.-sad; sorrowful; gloomy.",
+        "clean": {
+            "cue": "to trust.-trust.-a post, or station, in hunting.-a secret meeting, or the place of such meeting; a tryst. see tryst.-sad; sorrowful; gloomy.",
+            "reconstructed": "to trust",
+            "cosine": 0.9999998807907104,
+            "euclidean": 7.763243047520518e-05,
+            "l2": 7.763243047520518e-05,
+            "edit_distance": 132
+        },
+        "noise": {
+            "cue": "to erust",
+            "reconstructed": "to erust",
+            "cosine": 1.0,
+            "euclidean": 9.6413932624273e-05,
+            "l2": 9.641393990023062e-05,
+            "edit_distance": 0
+        }
+    },
+    {
+        "index": 2,
+        "original": "the utterance of the ejaculation \"ay me !\" [obs.] see ay, interj.",
+        "clean": {
+            "cue": "the utterance of the ejaculation \"ay me !\" [obs.] see ay, interj.",
+            "reconstructed": "the uttering of the ejaculation \"ay me !\" [obs",
+            "cosine": 0.9931944608688354,
+            "euclidean": 0.020327340811491013,
+            "l2": 0.020327340811491013,
+            "edit_distance": 21
+        },
+        "noise": {
+            "cue": "the utterance of zhe ejaculation \"ay me !\" [obs",
+            "reconstructed": "the uttering of zhe ejaculation \"ay me !\" [obs",
+            "cosine": 0.9934296607971191,
+            "euclidean": 0.028583288192749023,
+            "l2": 0.028583288192749023,
+            "edit_distance": 3
+        }
+    },
+    {
+        "index": 3,
+        "original": "aeolian, 1; as, the aeolic dialect; the aeolic mode.",
+        "clean": {
+            "cue": "aeolian, 1; as, the aeolic dialect; the aeolic mode.",
+            "reconstructed": "aeolian, 1; as, the aeolian dialect; the aeolian mode",
+            "cosine": 0.9854536652565002,
+            "euclidean": 0.03671007975935936,
+            "l2": 0.03671007603406906,
+            "edit_distance": 5
+        },
+        "noise": {
+            "cue": "aeolian, 1; as, the aeolic dialect; the aeolix mode",
+            "reconstructed": "aeolian, 1; as, the aeolian dialect; the aeolix mode",
+            "cosine": 0.9919113516807556,
+            "euclidean": 0.029323851689696312,
+            "l2": 0.029323849827051163,
+            "edit_distance": 2
+        }
+    },
+    {
+        "index": 4,
+        "original": "a sandy calcareous straum, containing, or impregnated with, iron, and lying between the upper and lower lias of england.",
+        "clean": {
+            "cue": "a sandy calcareous straum, containing, or impregnated with, iron, and lying between the upper and lower lias of england.",
+            "reconstructed": "a sandy calcareous straw, containing, or impregnated with iron, and lying between the upper and lower lias of england",
+            "cosine": 0.9742384552955627,
+            "euclidean": 0.05697019398212433,
+            "l2": 0.05697019770741463,
+            "edit_distance": 4
+        },
+        "noise": {
+            "cue": "a sandy calcareous straum, containing, or impregnated with, iron, and lyieg between the upper and lower lias of england",
+            "reconstructed": "a sandy calcareous stream, containing, or impregnated with, iron, and leading between the upper and lower lias of england",
+            "cosine": 0.9358953833580017,
+            "euclidean": 0.09444037824869156,
+            "l2": 0.09444037824869156,
+            "edit_distance": 6
+        }
+    },
+    {
+        "index": 5,
+        "original": "the act of demanding with authority, and compelling to pay or yield; compulsion to give or furnish; a levying by force; a driving to compliance; as, the exaction to tribute or of obedience; hence, extortion.-that which is exacted; a severe tribute; a fee, reward, or contribution, demanded or levied with severity or injustice.",
+        "clean": {
+            "cue": "the act of demanding with authority, and compelling to pay or yield; compulsion to give or furnish; a levying by force; a driving to compliance; as, the exaction to tribute or of obedience; hence, extortion.-that which is exacted; a severe tribute; a fee, reward, or contribution, demanded or levied with severity or injustice.",
+            "reconstructed": "the act of demanding with authority, and compelling to pay or yield; compulsion to give or to furnish; a compulsion with force; a compulsion to comply; as, the drawing of tribute or to obedience; therefore, extortion",
+            "cosine": 0.954382598400116,
+            "euclidean": 0.08277954161167145,
+            "l2": 0.08277954906225204,
+            "edit_distance": 160
+        },
+        "noise": {
+            "cue": "the act of demanding with authority, and compelling to pay zr yield; compulsion to give or furnish; a levying by force; a driving to compliance; as, the exaction to tribute or of obedience; hence, extortion",
+            "reconstructed": "the act of demanding with authority, and obliging to pay yield; compulsion to give or to furnish; a coercion by force; an urge to compliance; as, the drawing of tribute or to obedience; therefore, extortion",
+            "cosine": 0.9371435642242432,
+            "euclidean": 0.09693620353937149,
+            "l2": 0.09693621098995209,
+            "edit_distance": 41
+        }
+    },
+    {
+        "index": 6,
+        "original": "detached; separated; -- a term indicating that every note is to be performed in a distinct and pointed manner.",
+        "clean": {
+            "cue": "detached; separated; -- a term indicating that every note is to be performed in a distinct and pointed manner.",
+            "reconstructed": "detached; separate; -- a term indicating that every note is to be performed in a distinct and pointed way",
+            "cosine": 0.9938310980796814,
+            "euclidean": 0.025129826739430428,
+            "l2": 0.025129826739430428,
+            "edit_distance": 7
+        },
+        "noise": {
+            "cue": "detached; separated; -- a term indicating that every note is to be performed on a distinct and pointed manner",
+            "reconstructed": "detached; separate; -- a term indicating that every note is to be performed in a distinct and pointed way",
+            "cosine": 0.9924209117889404,
+            "euclidean": 0.027147214859724045,
+            "l2": 0.027147214859724045,
+            "edit_distance": 7
+        }
+    },
+    {
+        "index": 7,
+        "original": "a member of a household; a domestic.",
+        "clean": {
+            "cue": "a member of a household; a domestic.",
+            "reconstructed": "a member of a domestic; a domestic",
+            "cosine": 0.9192406535148621,
+            "euclidean": 0.05826063081622124,
+            "l2": 0.058260634541511536,
+            "edit_distance": 8
+        },
+        "noise": {
+            "cue": "a member of a household; a domistic",
+            "reconstructed": "a member of a household; a domistic",
+            "cosine": 1.0,
+            "euclidean": 4.02820369345136e-05,
+            "l2": 4.02820369345136e-05,
+            "edit_distance": 0
+        }
+    },
+    {
+        "index": 8,
+        "original": "a composition for two performers, whether vocal or instrumental.",
+        "clean": {
+            "cue": "a composition for two performers, whether vocal or instrumental.",
+            "reconstructed": "a composition for two performers, whether vocal or instrumental",
+            "cosine": 1.0,
+            "euclidean": 5.433375554275699e-05,
+            "l2": 5.433375554275699e-05,
+            "edit_distance": 1
+        },
+        "noise": {
+            "cue": "a composition for two performers, whether vocal oy instrumental",
+            "reconstructed": "a composition for two performers, whether vocal or instrumental",
+            "cosine": 0.9758540391921997,
+            "euclidean": 0.04779830947518349,
+            "l2": 0.04779830947518349,
+            "edit_distance": 1
+        }
+    },
+    {
+        "index": 9,
+        "original": "to clothe with flesh.",
+        "clean": {
+            "cue": "to clothe with flesh.",
+            "reconstructed": "to clothe with flesh",
+            "cosine": 0.9999999403953552,
+            "euclidean": 4.788304795511067e-05,
+            "l2": 4.788304795511067e-05,
+            "edit_distance": 1
+        },
+        "noise": {
+            "cue": "to csothe with flesh",
+            "reconstructed": "to csothe with flesh",
+            "cosine": 0.9999998807907104,
+            "euclidean": 7.355586421908811e-05,
+            "l2": 7.355587149504572e-05,
+            "edit_distance": 0
+        }
+    },
+    {
+        "index": 10,
+        "original": "one who belongs to the militia.",
+        "clean": {
+            "cue": "one who belongs to the militia.",
+            "reconstructed": "one who belongs to the militia",
+            "cosine": 1.0000001192092896,
+            "euclidean": 3.79509074264206e-05,
+            "l2": 3.7950911064399406e-05,
+            "edit_distance": 1
+        },
+        "noise": {
+            "cue": "one who belongs to tfe militia",
+            "reconstructed": "one who belongs to tfe militia",
+            "cosine": 1.0000001192092896,
+            "euclidean": 4.921459549223073e-05,
+            "l2": 4.921459549223073e-05,
+            "edit_distance": 0
+        }
+    },
+    {
+        "index": 11,
+        "original": "having three knots or nodes; having three points from which a leaf may shoot; as, a trinodal stem.-having three nodal points.",
+        "clean": {
+            "cue": "having three knots or nodes; having three points from which a leaf may shoot; as, a trinodal stem.-having three nodal points.",
+            "reconstructed": "having three knots or nodes; having three points from which a leaf may sprout; as, a trinodal stem",
+            "cosine": 0.9909173250198364,
+            "euclidean": 0.03165285289287567,
+            "l2": 0.03165285661816597,
+            "edit_distance": 31
+        },
+        "noise": {
+            "cue": "having three knots or nodes; having three points from which a leaf may shoot; as, a zrinodal stem",
+            "reconstructed": "having three knots or nodes; having three points from which a leaf may sprout; as, a zrinodal stump",
+            "cosine": 0.9871968626976013,
+            "euclidean": 0.03757356107234955,
+            "l2": 0.03757356479763985,
+            "edit_distance": 5
+        }
+    },
+    {
+        "index": 12,
+        "original": "of rub-a. & n. from rub, v.",
+        "clean": {
+            "cue": "of rub-a. & n. from rub, v.",
+            "reconstructed": "from rubber, v",
+            "cosine": 0.8811283111572266,
+            "euclidean": 0.10612881183624268,
+            "l2": 0.10612881183624268,
+            "edit_distance": 19
+        },
+        "noise": {
+            "cue": "frum rub, v",
+            "reconstructed": "frum rub, v",
+            "cosine": 0.9999999403953552,
+            "euclidean": 9.78728785412386e-05,
+            "l2": 9.787288581719622e-05,
+            "edit_distance": 0
+        }
+    },
+    {
+        "index": 13,
+        "original": "imp. of gnaw.",
+        "clean": {
+            "cue": "imp. of gnaw.",
+            "reconstructed": "imp. of gnaw.",
+            "cosine": 1.0,
+            "euclidean": 5.687437078449875e-05,
+            "l2": 5.687437078449875e-05,
+            "edit_distance": 0
+        },
+        "noise": {
+            "cue": "imp. ob gnaw.",
+            "reconstructed": "imp. ob gnaw.",
+            "cosine": 0.9999998211860657,
+            "euclidean": 5.8567558880895376e-05,
+            "l2": 5.8567558880895376e-05,
+            "edit_distance": 0
+        }
+    },
+    {
+        "index": 14,
+        "original": "divination from the state of the air or from atmospheric substances; also, forecasting changes in the weather.",
+        "clean": {
+            "cue": "divination from the state of the air or from atmospheric substances; also, forecasting changes in the weather.",
+            "reconstructed": "divination from the state of air or from atmospheric substances; also, predicting changes in weather",
+            "cosine": 0.9901171326637268,
+            "euclidean": 0.027823366224765778,
+            "l2": 0.02782336436212063,
+            "edit_distance": 14
+        },
+        "noise": {
+            "cue": "divination from the ctate of the air or from atmospheric substances; also, forecasting changes in the weather",
+            "reconstructed": "divining from the state of air or from atmospheric substances; also, predicting changes in weather",
+            "cosine": 0.9276595115661621,
+            "euclidean": 0.07358558475971222,
+            "l2": 0.07358558475971222,
+            "edit_distance": 18
+        }
+    },
+    {
+        "index": 15,
+        "original": "a removable upper part of a hive. the word is sometimes contracted to super.",
+        "clean": {
+            "cue": "a removable upper part of a hive. the word is sometimes contracted to super.",
+            "reconstructed": "the word is sometimes contracted to super",
+            "cosine": 0.9999998211860657,
+            "euclidean": 3.75833005819004e-05,
+            "l2": 3.758330421987921e-05,
+            "edit_distance": 35
+        },
+        "noise": {
+            "cue": "the word is sometimes contracted to supep",
+            "reconstructed": "the word is sometimes contracted to supep",
+            "cosine": 1.0000001192092896,
+            "euclidean": 4.11817200074438e-05,
+            "l2": 4.118172364542261e-05,
+            "edit_distance": 0
+        }
+    },
+    {
+        "index": 16,
+        "original": "squeamish.",
+        "clean": {
+            "cue": "squeamish.",
+            "reconstructed": "squeamish",
+            "cosine": 1.0,
+            "euclidean": 0.00012820093252230436,
+            "l2": 0.00012820091797038913,
+            "edit_distance": 1
+        },
+        "noise": {
+            "cue": "squqamish",
+            "reconstructed": "squqamish",
+            "cosine": 0.9999997019767761,
+            "euclidean": 0.00011242783511988819,
+            "l2": 0.00011242783511988819,
+            "edit_distance": 0
+        }
+    },
+    {
+        "index": 17,
+        "original": "one skilled in rhinology.",
+        "clean": {
+            "cue": "one skilled in rhinology.",
+            "reconstructed": "one skilled in rhinology",
+            "cosine": 0.9999999403953552,
+            "euclidean": 7.090374128893018e-05,
+            "l2": 7.090374128893018e-05,
+            "edit_distance": 1
+        },
+        "noise": {
+            "cue": "one skilled in rhiuology",
+            "reconstructed": "one skilled in rhiology",
+            "cosine": 0.9516870975494385,
+            "euclidean": 0.07013092190027237,
+            "l2": 0.07013092190027237,
+            "edit_distance": 1
+        }
+    },
+    {
+        "index": 18,
+        "original": "alt. of dulcino",
+        "clean": {
+            "cue": "alt. of dulcino",
+            "reconstructed": "al. of dulcino",
+            "cosine": 0.9195959568023682,
+            "euclidean": 0.10428129881620407,
+            "l2": 0.10428129136562347,
+            "edit_distance": 1
+        },
+        "noise": {
+            "cue": "adt. of dulcino",
+            "reconstructed": "adt",
+            "cosine": 0.9999997615814209,
+            "euclidean": 9.576466254657134e-05,
+            "l2": 9.576466982252896e-05,
+            "edit_distance": 12
+        }
+    },
+    {
+        "index": 19,
+        "original": "founded on, or of the nature of, analogy; expressing or implying analogy.-having analogy; analogous.",
+        "clean": {
+            "cue": "founded on, or of the nature of, analogy; expressing or implying analogy.-having analogy; analogous.",
+            "reconstructed": "based on, or of the nature of an analogy; expressing or implying analogy",
+            "cosine": 0.970519483089447,
+            "euclidean": 0.04522661492228508,
+            "l2": 0.04522661492228508,
+            "edit_distance": 36
+        },
+        "noise": {
+            "cue": "founded on, or of the naturu of, analogy; expressing or implying analogy",
+            "reconstructed": "based on, or of the nature of analogy; expressing or implying analogy",
+            "cosine": 0.9340510368347168,
+            "euclidean": 0.07162182778120041,
+            "l2": 0.07162182778120041,
+            "edit_distance": 7
+        }
+    },
+    {
+        "index": 20,
+        "original": "to take fish, or other marine animals, with a trawl.-a fishing line, often extending a mile or more, having many short lines bearing hooks attached to it. it is used for catching cod, halibut, etc.; a boulter.-a large bag net attached to a beam with iron frames at its ends, and dragged at the bottom of the sea, -- used in fishing, and in gathering forms of marine life from the sea bottom.",
+        "clean": {
+            "cue": "to take fish, or other marine animals, with a trawl.-a fishing line, often extending a mile or more, having many short lines bearing hooks attached to it. it is used for catching cod, halibut, etc.; a boulter.-a large bag net attached to a beam with iron frames at its ends, and dragged at the bottom of the sea, -- used in fishing, and in gathering forms of marine life from the sea bottom.",
+            "reconstructed": "to catch fish, or other marine animals, with a trawl",
+            "cosine": 0.9929363131523132,
+            "euclidean": 0.02600833773612976,
+            "l2": 0.02600833773612976,
+            "edit_distance": 344
+        },
+        "noise": {
+            "cue": "to take fish, or otwer marine animals, with a trawl",
+            "reconstructed": "to catch fish, or other marine animals, with a trawl",
+            "cosine": 0.9746466279029846,
+            "euclidean": 0.04944868013262749,
+            "l2": 0.04944867640733719,
+            "edit_distance": 5
+        }
+    },
+    {
+        "index": 21,
+        "original": "to get away from by artifice; to avoid by dexterity, subterfuge, address, or ingenuity; to elude; to escape from cleverly; as, to evade a blow, a pursuer, a punishment; to evade the force of an argument.-to escape; to slip away; -- sometimes with from.-to attempt to escape; to practice artifice or sophistry, for the purpose of eluding.",
+        "clean": {
+            "cue": "to get away from by artifice; to avoid by dexterity, subterfuge, address, or ingenuity; to elude; to escape from cleverly; as, to evade a blow, a pursuer, a punishment; to evade the force of an argument.-to escape; to slip away; -- sometimes with from.-to attempt to escape; to practice artifice or sophistry, for the purpose of eluding.",
+            "reconstructed": "to escape by cunning; to avoid by dexterity, cunning, of address or ingenuity; to evade; to evade, by cleverly; as of a blow, a pursuer, a punishment; to evade the force of a argument",
+            "cosine": 0.943471372127533,
+            "euclidean": 0.09481605887413025,
+            "l2": 0.09481605142354965,
+            "edit_distance": 183
+        },
+        "noise": {
+            "cue": "to get away from by artifice; to avoid by dexterity, subterfuge, address, or ingenuity; to elude; to escape from cleverly; as, to evade a blow, a pursuer, a punishment; to evave the force of an argument",
+            "reconstructed": "to escape by cunning; to avoid by dexterity, cunning, of address or ingenuity; to evade; to evade, by cleverly; as to avoid, a blow, a pursuer, a punishment; to evade the force of a argument",
+            "cosine": 0.9470041394233704,
+            "euclidean": 0.09218645840883255,
+            "l2": 0.09218645840883255,
+            "edit_distance": 46
+        }
+    },
+    {
+        "index": 22,
+        "original": "of kotow",
+        "clean": {
+            "cue": "of kotow",
+            "reconstructed": "of kotow",
+            "cosine": 1.0000001192092896,
+            "euclidean": 9.404599404660985e-05,
+            "l2": 9.404599404660985e-05,
+            "edit_distance": 0
+        },
+        "noise": {
+            "cue": "of ketow",
+            "reconstructed": "of ketow",
+            "cosine": 0.9999997615814209,
+            "euclidean": 0.00015314076154027134,
+            "l2": 0.00015314077609218657,
+            "edit_distance": 0
+        }
+    },
+    {
+        "index": 23,
+        "original": "a measure or series consisting of five feet.",
+        "clean": {
+            "cue": "a measure or series consisting of five feet.",
+            "reconstructed": "a measure or series consisting of five feet",
+            "cosine": 0.9999999403953552,
+            "euclidean": 5.464044079417363e-05,
+            "l2": 5.4640444432152435e-05,
+            "edit_distance": 1
+        },
+        "noise": {
+            "cue": "a measure or seuies consisting of five feet",
+            "reconstructed": "a measure or seiies consisting of five feet",
+            "cosine": 0.9449754357337952,
+            "euclidean": 0.05976330116391182,
+            "l2": 0.05976329371333122,
+            "edit_distance": 1
+        }
+    },
+    {
+        "index": 24,
+        "original": "the quality of being foolish.-a foolish practice; an absurdity.",
+        "clean": {
+            "cue": "the quality of being foolish.-a foolish practice; an absurdity.",
+            "reconstructed": "-a foolish practice; an absurdity",
+            "cosine": 1.0000001192092896,
+            "euclidean": 4.3363797885831445e-05,
+            "l2": 4.3363797885831445e-05,
+            "edit_distance": 30
+        },
+        "noise": {
+            "cue": "-a foolish practice; an absardity",
+            "reconstructed": "-a foolish practice; an absurdity",
+            "cosine": 0.9868509769439697,
+            "euclidean": 0.03169196844100952,
+            "l2": 0.03169196844100952,
+            "edit_distance": 1
+        }
+    },
+    {
+        "index": 25,
+        "original": "an acute specific disease with a dusky red cutaneous eruption resembling that of measles, but unattended by catarrhal symptoms; -- called also german measles.",
+        "clean": {
+            "cue": "an acute specific disease with a dusky red cutaneous eruption resembling that of measles, but unattended by catarrhal symptoms; -- called also german measles.",
+            "reconstructed": "an acute specific disease with a reddish skin rash resembling that of measles, but without catarrhal symptoms; -- also called German measles",
+            "cosine": 0.9537262916564941,
+            "euclidean": 0.0856490433216095,
+            "l2": 0.0856490433216095,
+            "edit_distance": 44
+        },
+        "noise": {
+            "cue": "an acute specific disease with a dusky red cutaneous eruption resembling that of measles, but unatgended by catarrhal symptoms; -- called also german measles",
+            "reconstructed": "an acute specific disease with a reddish skin rash resembling that of measles, but not affected by catarrhal symptoms; -- also called German measles",
+            "cosine": 0.9511210322380066,
+            "euclidean": 0.08746436983346939,
+            "l2": 0.0874643623828888,
+            "edit_distance": 39
+        }
+    },
+    {
+        "index": 26,
+        "original": "a stratum in crystalline rock, containing metallic sulphides.-same as tetrahedrite.",
+        "clean": {
+            "cue": "a stratum in crystalline rock, containing metallic sulphides.-same as tetrahedrite.",
+            "reconstructed": "a layer in crystalline rock, containing metallic sulfides",
+            "cosine": 0.9801664352416992,
+            "euclidean": 0.04280483350157738,
+            "l2": 0.04280483350157738,
+            "edit_distance": 31
+        },
+        "noise": {
+            "cue": "a otratum in crystalline rock, containing metallic sulphides",
+            "reconstructed": "a otratum in crystalline rock, containing metallic sulfides",
+            "cosine": 0.9982467293739319,
+            "euclidean": 0.014643514528870583,
+            "l2": 0.014643514528870583,
+            "edit_distance": 2
+        }
+    },
+    {
+        "index": 27,
+        "original": "rough-fruited.",
+        "clean": {
+            "cue": "rough-fruited.",
+            "reconstructed": "rough-fruited",
+            "cosine": 1.0,
+            "euclidean": 7.979405927471817e-05,
+            "l2": 7.979405927471817e-05,
+            "edit_distance": 1
+        },
+        "noise": {
+            "cue": "rzugh-fruited",
+            "reconstructed": "rzugh-fruited",
+            "cosine": 0.9999999403953552,
+            "euclidean": 7.84282383392565e-05,
+            "l2": 7.842824561521411e-05,
+            "edit_distance": 0
+        }
+    },
+    {
+        "index": 28,
+        "original": "satiety.",
+        "clean": {
+            "cue": "satiety.",
+            "reconstructed": "satiety",
+            "cosine": 1.0,
+            "euclidean": 0.0001130348609876819,
+            "l2": 0.0001130348609876819,
+            "edit_distance": 1
+        },
+        "noise": {
+            "cue": "natiety",
+            "reconstructed": "natiety",
+            "cosine": 0.9999998807907104,
+            "euclidean": 0.0001259845303138718,
+            "l2": 0.0001259845303138718,
+            "edit_distance": 0
+        }
+    },
+    {
+        "index": 29,
+        "original": "a weapon, used in discharging arrows, formed by placing a bow crosswise on a stock.",
+        "clean": {
+            "cue": "a weapon, used in discharging arrows, formed by placing a bow crosswise on a stock.",
+            "reconstructed": "a weapon, used in firing arrows, formed by placing a bow transversely on a stock",
+            "cosine": 0.9660625457763672,
+            "euclidean": 0.05575383082032204,
+            "l2": 0.05575383082032204,
+            "edit_distance": 15
+        },
+        "noise": {
+            "cue": "a weapon, used in dischargina arrows, formed by placing a bow crosswise on a stock",
+            "reconstructed": "a weapon, used in discharjina arrows, formed by placing a bow transversely on a stock",
+            "cosine": 0.9554736614227295,
+            "euclidean": 0.074122354388237,
+            "l2": 0.074122354388237,
+            "edit_distance": 9
+        }
+    },
+    {
+        "index": 30,
+        "original": "of redia",
+        "clean": {
+            "cue": "of redia",
+            "reconstructed": "of redia",
+            "cosine": 0.9999998807907104,
+            "euclidean": 9.27467699511908e-05,
+            "l2": 9.27467699511908e-05,
+            "edit_distance": 0
+        },
+        "noise": {
+            "cue": "of refia",
+            "reconstructed": "of refia",
+            "cosine": 0.9999998807907104,
+            "euclidean": 9.257838246412575e-05,
+            "l2": 9.257838246412575e-05,
+            "edit_distance": 0
+        }
+    },
+    {
+        "index": 31,
+        "original": "the workshop of a smith; a smithy or stithy.-work done by a smith; smithing.",
+        "clean": {
+            "cue": "the workshop of a smith; a smithy or stithy.-work done by a smith; smithing.",
+            "reconstructed": "the workshop of a smith; a smithy or stithy",
+            "cosine": 1.0,
+            "euclidean": 6.798130925744772e-05,
+            "l2": 6.798130925744772e-05,
+            "edit_distance": 33
+        },
+        "noise": {
+            "cue": "the workshop of a smilh; a smithy or stithy",
+            "reconstructed": "the workshop of a smilh; a smithy or stithy",
+            "cosine": 0.9999998807907104,
+            "euclidean": 7.117422501323745e-05,
+            "l2": 7.117423956515267e-05,
+            "edit_distance": 0
+        }
+    },
+    {
+        "index": 32,
+        "original": "liable to objection; likely to be objected to or disapproved of; offensive; as, objectionable words.",
+        "clean": {
+            "cue": "liable to objection; likely to be objected to or disapproved of; offensive; as, objectionable words.",
+            "reconstructed": "liable to objection; likely to be objected to or disapproved of; offensive; as, objectionable words",
+            "cosine": 0.9999998211860657,
+            "euclidean": 7.572809408884495e-05,
+            "l2": 7.572810136480257e-05,
+            "edit_distance": 1
+        },
+        "noise": {
+            "cue": "liable to objection; likely to be objected to or disapproved of; offunsive; as, objectionable words",
+            "reconstructed": "liable to objection; likely to be objected to or disapproved of; offunction; as, objectionable words",
+            "cosine": 0.9680506587028503,
+            "euclidean": 0.05306477099657059,
+            "l2": 0.05306476727128029,
+            "edit_distance": 4
+        }
+    },
+    {
+        "index": 33,
+        "original": "the state of being savage; savageness; savagism.-an act of cruelty; barbarity.-wild growth, as of plants.",
+        "clean": {
+            "cue": "the state of being savage; savageness; savagism.-an act of cruelty; barbarity.-wild growth, as of plants.",
+            "reconstructed": "the state of being savage; savaginess; savagism",
+            "cosine": 0.9850220084190369,
+            "euclidean": 0.03314625471830368,
+            "l2": 0.03314625844359398,
+            "edit_distance": 59
+        },
+        "noise": {
+            "cue": "the state of being savagk; savageness; savagism",
+            "reconstructed": "the state of being savagg; savagenness; savagism",
+            "cosine": 0.949628472328186,
+            "euclidean": 0.06325425207614899,
+            "l2": 0.06325425952672958,
+            "edit_distance": 2
+        }
+    },
+    {
+        "index": 34,
+        "original": "a mineral consisting principally of silicate of iron, and crystallizing in hexagonal prisms with perfect basal cleavage; -- so named from the swedish mineralogist cronstedt.",
+        "clean": {
+            "cue": "a mineral consisting principally of silicate of iron, and crystallizing in hexagonal prisms with perfect basal cleavage; -- so named from the swedish mineralogist cronstedt.",
+            "reconstructed": "a mineral consisting principally of iron silica, and crystallizing in hexagonal prisms with perfect base cleavage; - thus named after the Swedish mineralogist Kronstedt",
+            "cosine": 0.9343905448913574,
+            "euclidean": 0.10704277455806732,
+            "l2": 0.10704278200864792,
+            "edit_distance": 26
+        },
+        "noise": {
+            "cue": "a mineral consisting principally of silicate oy iron, and crystallizing in hexagonal prisms with perfect basal cleavage; -- so named from the swedish mineralogist cronstedt",
+            "reconstructed": "a mineral consisting principally of silicate or iron, and crystallizing in hexagonal prisms with perfect base cleavage; - thus named after the Swedish mineralogist Kronstedt",
+            "cosine": 0.9449912905693054,
+            "euclidean": 0.09871729463338852,
+            "l2": 0.09871729463338852,
+            "edit_distance": 13
+        }
+    },
+    {
+        "index": 35,
+        "original": "of hyposternum",
+        "clean": {
+            "cue": "of hyposternum",
+            "reconstructed": "of hyposternum",
+            "cosine": 0.9999998807907104,
+            "euclidean": 6.631268479395658e-05,
+            "l2": 6.631269206991419e-05,
+            "edit_distance": 0
+        },
+        "noise": {
+            "cue": "of hypostlrnum",
+            "reconstructed": "of hypostlrnum",
+            "cosine": 0.9999997615814209,
+            "euclidean": 9.531754039926454e-05,
+            "l2": 9.531754039926454e-05,
+            "edit_distance": 0
+        }
+    },
+    {
+        "index": 36,
+        "original": "an organic base, in the form of a white powder, obtained from aconitum lycoctonum.",
+        "clean": {
+            "cue": "an organic base, in the form of a white powder, obtained from aconitum lycoctonum.",
+            "reconstructed": "an organic base, in the form of a white powder, obtained from aconitum lycoctonum",
+            "cosine": 0.9999998807907104,
+            "euclidean": 6.963501800782979e-05,
+            "l2": 6.96350252837874e-05,
+            "edit_distance": 1
+        },
+        "noise": {
+            "cue": "an organic base, in the form of a white powder, obtained from aconitum dycoctonum",
+            "reconstructed": "an organic base, in the form of a white powder, obtained from aconitum dycoctonum",
+            "cosine": 0.9999998807907104,
+            "euclidean": 6.850848876638338e-05,
+            "l2": 6.850848876638338e-05,
+            "edit_distance": 0
+        }
+    },
+    {
+        "index": 37,
+        "original": "as much as a cup will hold.",
+        "clean": {
+            "cue": "as much as a cup will hold.",
+            "reconstructed": "as much as a cup will hold",
+            "cosine": 1.0,
+            "euclidean": 4.792156323674135e-05,
+            "l2": 4.792156323674135e-05,
+            "edit_distance": 1
+        },
+        "noise": {
+            "cue": "as much as a cuj will hold",
+            "reconstructed": "as much as a cuj will hold",
+            "cosine": 0.9999999403953552,
+            "euclidean": 6.196769390953705e-05,
+            "l2": 6.196768663357943e-05,
+            "edit_distance": 0
+        }
+    },
+    {
+        "index": 38,
+        "original": "act of crowding anything into a less compass, or the state of being crowded or pressed together; condensation.-a state of the bowels in which the evacuations are infrequent and difficult, or the intestines become filled with hardened faeces; costiveness.",
+        "clean": {
+            "cue": "act of crowding anything into a less compass, or the state of being crowded or pressed together; condensation.-a state of the bowels in which the evacuations are infrequent and difficult, or the intestines become filled with hardened faeces; costiveness.",
+            "reconstructed": "- an intestinal state in which the evacuations are infrequent and difficult, or where the intestines become filled with hardened faeces; -",
+            "cosine": 0.8985123038291931,
+            "euclidean": 0.11066053062677383,
+            "l2": 0.11066053062677383,
+            "edit_distance": 131
+        },
+        "noise": {
+            "cue": "-a state of the bowels in which the evacuations are infrequent and difficult, or the inteskines become filled with hardened faeces; costiveness",
+            "reconstructed": "- an intestinal state in which the evacuations are infrequent and difficult, or in which the intestinal tissues become filled with hardened feces; -",
+            "cosine": 0.8776952028274536,
+            "euclidean": 0.12107571214437485,
+            "l2": 0.12107571214437485,
+            "edit_distance": 48
+        }
+    },
+    {
+        "index": 39,
+        "original": "a breed of dogs having erect ears and long silky hair, usually white; -- called also pomeranian dog, and louploup.",
+        "clean": {
+            "cue": "a breed of dogs having erect ears and long silky hair, usually white; -- called also pomeranian dog, and louploup.",
+            "reconstructed": "a breed of dogs with upright ears and long silky hair, generally white; - also called Pomeranian dog, and luploup.",
+            "cosine": 0.9431673884391785,
+            "euclidean": 0.09052523970603943,
+            "l2": 0.09052523970603943,
+            "edit_distance": 25
+        },
+        "noise": {
+            "cue": "a breed of dogs having erect ears and long silky hair, usually white; -- cazled also pomeranian dog, and louploup.",
+            "reconstructed": "a breed of dogs with upright ears and long silky hair, generally white; - casled also Pomeranese dog, and luploup.",
+            "cosine": 0.8925437927246094,
+            "euclidean": 0.128897026181221,
+            "l2": 0.12889701128005981,
+            "edit_distance": 21
+        }
+    },
+    {
+        "index": 40,
+        "original": "the act of reading; as, the lecture of holy scripture.-a discourse on any subject; especially, a formal or methodical discourse, intended for instruction; sometimes, a familiar discourse, in contrast with a sermon.-a reprimand or formal reproof from one having authority.-a rehearsal of a lesson.-to read or deliver a lecture to.-to reprove formally and with authority.-to deliver a lecture or lectures.",
+        "clean": {
+            "cue": "the act of reading; as, the lecture of holy scripture.-a discourse on any subject; especially, a formal or methodical discourse, intended for instruction; sometimes, a familiar discourse, in contrast with a sermon.-a reprimand or formal reproof from one having authority.-a rehearsal of a lesson.-to read or deliver a lecture to.-to reprove formally and with authority.-to deliver a lecture or lectures.",
+            "reconstructed": "the act of reading; as, the lecture of holy scripture",
+            "cosine": 0.9999998807907104,
+            "euclidean": 3.594684676500037e-05,
+            "l2": 3.594684676500037e-05,
+            "edit_distance": 350
+        },
+        "noise": {
+            "cue": "the act of reading; ai, the lecture of holy scripture",
+            "reconstructed": "the act of reading; ai, the reading of holy scripture",
+            "cosine": 0.9778041839599609,
+            "euclidean": 0.02879246696829796,
+            "l2": 0.02879246696829796,
+            "edit_distance": 6
+        }
+    },
+    {
+        "index": 41,
+        "original": "the quality of being absurd or inconsistent with obvious truth, reason, or sound judgment.-that which is absurd; an absurd action; a logical contradiction.",
+        "clean": {
+            "cue": "the quality of being absurd or inconsistent with obvious truth, reason, or sound judgment.-that which is absurd; an absurd action; a logical contradiction.",
+            "reconstructed": "the quality of being absurd or inconsistent with obvious truth, reason, or sound judgment",
+            "cosine": 0.9999999403953552,
+            "euclidean": 5.4089861805550754e-05,
+            "l2": 5.4089861805550754e-05,
+            "edit_distance": 66
+        },
+        "noise": {
+            "cue": "toe quality of being absurd or inconsistent with obvious truth, reason, or sound judgment",
+            "reconstructed": "toe the quality of being absurd or inconsistent with obvious truth, reason, or sound judgment",
+            "cosine": 0.9744809865951538,
+            "euclidean": 0.051438700407743454,
+            "l2": 0.051438700407743454,
+            "edit_distance": 4
+        }
+    },
+    {
+        "index": 42,
+        "original": "a long, curling wave rolling in from the ocean. see comber.",
+        "clean": {
+            "cue": "a long, curling wave rolling in from the ocean. see comber.",
+            "reconstructed": "a long, curling wave rolling in from the ocean",
+            "cosine": 0.9999999403953552,
+            "euclidean": 6.875265535200015e-05,
+            "l2": 6.875266262795776e-05,
+            "edit_distance": 13
+        },
+        "noise": {
+            "cue": "a lovg, curling wave rolling in from the ocean",
+            "reconstructed": "a lovg, curling wave rolling in from the ocean",
+            "cosine": 1.0,
+            "euclidean": 8.366542169824243e-05,
+            "l2": 8.366542897420004e-05,
+            "edit_distance": 0
+        }
+    },
+    {
+        "index": 43,
+        "original": "the forest trees of a region or country, considered collectively.-a description or history of the forest trees of a country.",
+        "clean": {
+            "cue": "the forest trees of a region or country, considered collectively.-a description or history of the forest trees of a country.",
+            "reconstructed": "the forest trees of a region or country, considered collectively",
+            "cosine": 1.0000001192092896,
+            "euclidean": 3.7894020351814106e-05,
+            "l2": 3.7894020351814106e-05,
+            "edit_distance": 60
+        },
+        "noise": {
+            "cue": "the forest trees of a region or country, considered aollectively",
+            "reconstructed": "the forest trees of a region or country, considered collectively",
+            "cosine": 0.8743913769721985,
+            "euclidean": 0.09846007078886032,
+            "l2": 0.09846007078886032,
+            "edit_distance": 1
+        }
+    },
+    {
+        "index": 44,
+        "original": "a tantalate of uranium, yttrium, and calcium, of a brown or black color.",
+        "clean": {
+            "cue": "a tantalate of uranium, yttrium, and calcium, of a brown or black color.",
+            "reconstructed": "a tantalum of uranium, yttrium and calcium, of a brown or black colour",
+            "cosine": 0.9583588242530823,
+            "euclidean": 0.07456827163696289,
+            "l2": 0.07456827163696289,
+            "edit_distance": 6
+        },
+        "noise": {
+            "cue": "a tantalate of uranium, yttrium, and celcium, of a brown or black color",
+            "reconstructed": "a tantalum of uranium, yttrium and calcium, of a brown or black colour",
+            "cosine": 0.9437572360038757,
+            "euclidean": 0.0881989374756813,
+            "l2": 0.0881989374756813,
+            "edit_distance": 6
+        }
+    },
+    {
+        "index": 45,
+        "original": "of crimple",
+        "clean": {
+            "cue": "of crimple",
+            "reconstructed": "of crimple",
+            "cosine": 1.0,
+            "euclidean": 0.00010070385178551078,
+            "l2": 0.00010070385906146839,
+            "edit_distance": 0
+        },
+        "noise": {
+            "cue": "of crinple",
+            "reconstructed": "of crinple",
+            "cosine": 0.9999998211860657,
+            "euclidean": 8.409455767832696e-05,
+            "l2": 8.409455767832696e-05,
+            "edit_distance": 0
+        }
+    },
+    {
+        "index": 46,
+        "original": "the act of planting again; a replanting.",
+        "clean": {
+            "cue": "the act of planting again; a replanting.",
+            "reconstructed": "the act of planting again; a replanting",
+            "cosine": 1.0,
+            "euclidean": 4.462075958144851e-05,
+            "l2": 4.4620766857406124e-05,
+            "edit_distance": 1
+        },
+        "noise": {
+            "cue": "the act of planting again; a oeplanting",
+            "reconstructed": "the act of planting again; an oe planting",
+            "cosine": 0.9305739402770996,
+            "euclidean": 0.061254262924194336,
+            "l2": 0.06125425919890404,
+            "edit_distance": 2
+        }
+    },
+    {
+        "index": 47,
+        "original": "of scintillate",
+        "clean": {
+            "cue": "of scintillate",
+            "reconstructed": "of scintillat",
+            "cosine": 0.9762022495269775,
+            "euclidean": 0.05246683582663536,
+            "l2": 0.05246683582663536,
+            "edit_distance": 1
+        },
+        "noise": {
+            "cue": "of sciatillate",
+            "reconstructed": "of sciatillate",
+            "cosine": 1.0000001192092896,
+            "euclidean": 8.248950325651094e-05,
+            "l2": 8.248950325651094e-05,
+            "edit_distance": 0
+        }
+    },
+    {
+        "index": 48,
+        "original": "a name given to any one of several yellow or scarlet dyestuffs of artificial production and complex structure.  in general they are diazo and sulphonic acid derivatives of benzene and naphthol.",
+        "clean": {
+            "cue": "a name given to any one of several yellow or scarlet dyestuffs of artificial production and complex structure.  in general they are diazo and sulphonic acid derivatives of benzene and naphthol.",
+            "reconstructed": "a name given to any one of several yellow or scarlet dyes of artificial production and complex structure",
+            "cosine": 0.9906765222549438,
+            "euclidean": 0.03264458477497101,
+            "l2": 0.03264458477497101,
+            "edit_distance": 89
+        },
+        "noise": {
+            "cue": "a name given to any one of several yellow or lcarlet dyestuffs of artificial production and complex structure",
+            "reconstructed": "a name given to any one of several yellow or scarlet dyes of artificial production and complex structure",
+            "cosine": 0.9594250917434692,
+            "euclidean": 0.06878218799829483,
+            "l2": 0.06878218799829483,
+            "edit_distance": 6
+        }
+    },
+    {
+        "index": 49,
+        "original": "to deprive of bones, as meat; to bone.-to twist about, as if boneless.",
+        "clean": {
+            "cue": "to deprive of bones, as meat; to bone.-to twist about, as if boneless.",
+            "reconstructed": "to deprive of bones, as meat; to bone",
+            "cosine": 1.0,
+            "euclidean": 3.472038224572316e-05,
+            "l2": 3.4720385883701965e-05,
+            "edit_distance": 33
+        },
+        "noise": {
+            "cue": "to deprive ov bones, as meat; to bone",
+            "reconstructed": "to deprive ov bones, as meat; to bone",
+            "cosine": 1.0,
+            "euclidean": 5.824129766551778e-05,
+            "l2": 5.824129766551778e-05,
+            "edit_distance": 0
+        }
+    },
+    {
+        "index": 50,
+        "original": "attainder; attainture; conviction.",
+        "clean": {
+            "cue": "attainder; attainture; conviction.",
+            "reconstructed": "attainder; attainture; conviction",
+            "cosine": 1.0,
+            "euclidean": 0.00011726255615940318,
+            "l2": 0.00011726255615940318,
+            "edit_distance": 1
+        },
+        "noise": {
+            "cue": "attainder; attainture; zonviction",
+            "reconstructed": "Attainder; attainture; zonviction",
+            "cosine": 0.919192910194397,
+            "euclidean": 0.09368076175451279,
+            "l2": 0.09368076175451279,
+            "edit_distance": 0
+        }
+    },
+    {
+        "index": 51,
+        "original": "of desiccate",
+        "clean": {
+            "cue": "of desiccate",
+            "reconstructed": "of desiccat",
+            "cosine": 0.9483237266540527,
+            "euclidean": 0.07965417206287384,
+            "l2": 0.07965417206287384,
+            "edit_distance": 1
+        },
+        "noise": {
+            "cue": "of dericcate",
+            "reconstructed": "of dericate",
+            "cosine": 0.966335117816925,
+            "euclidean": 0.07159643620252609,
+            "l2": 0.07159643620252609,
+            "edit_distance": 1
+        }
+    },
+    {
+        "index": 52,
+        "original": "having numerous vocal muscles; of or pertaining to the polymyodae.",
+        "clean": {
+            "cue": "having numerous vocal muscles; of or pertaining to the polymyodae.",
+            "reconstructed": "having numerous vocal muscles; of the polymyoda or belonging to them",
+            "cosine": 0.9117081761360168,
+            "euclidean": 0.09473372995853424,
+            "l2": 0.09473372995853424,
+            "edit_distance": 29
+        },
+        "noise": {
+            "cue": "having numerous vocal muscles; of or pertaingng to the polymyodae",
+            "reconstructed": "having numerous vocal muscles; of the polymyoidea or belonging to them",
+            "cosine": 0.8958505392074585,
+            "euclidean": 0.10607605427503586,
+            "l2": 0.10607605427503586,
+            "edit_distance": 30
+        }
+    },
+    {
+        "index": 53,
+        "original": "to establish beforehand.",
+        "clean": {
+            "cue": "to establish beforehand.",
+            "reconstructed": "to establish in advance",
+            "cosine": 0.9803674817085266,
+            "euclidean": 0.03697250038385391,
+            "l2": 0.03697250038385391,
+            "edit_distance": 9
+        },
+        "noise": {
+            "cue": "to establish befyrehand",
+            "reconstructed": "to establish beforehand",
+            "cosine": 0.7557538747787476,
+            "euclidean": 0.14355196058750153,
+            "l2": 0.14355196058750153,
+            "edit_distance": 1
+        }
+    },
+    {
+        "index": 54,
+        "original": "a hedge bill. see under hedge.",
+        "clean": {
+            "cue": "a hedge bill. see under hedge.",
+            "reconstructed": "see under hedge",
+            "cosine": 0.9999999403953552,
+            "euclidean": 7.041359640425071e-05,
+            "l2": 7.041359640425071e-05,
+            "edit_distance": 15
+        },
+        "noise": {
+            "cue": "fee under hedge",
+            "reconstructed": "fee under hedging",
+            "cosine": 0.9782648682594299,
+            "euclidean": 0.04806862026453018,
+            "l2": 0.04806861653923988,
+            "edit_distance": 3
+        }
+    },
+    {
+        "index": 55,
+        "original": "an open, roofed gallery or portico, adjoining a dwelling house, forming an out-of-door sitting room.  see loggia.",
+        "clean": {
+            "cue": "an open, roofed gallery or portico, adjoining a dwelling house, forming an out-of-door sitting room.  see loggia.",
+            "reconstructed": "an open, roofed gallery or portico, adjacent to a dwelling house, forming an outdoor sitting room",
+            "cosine": 0.9881122708320618,
+            "euclidean": 0.03448847308754921,
+            "l2": 0.03448847681283951,
+            "edit_distance": 25
+        },
+        "noise": {
+            "cue": "an open, roofed gallery or portico, adjoining a dwelling house, forming an nut-of-door sitting room",
+            "reconstructed": "an open, roofed gallery or portico, adjacent to a dwelling house, forming a sitting-room of door-nose",
+            "cosine": 0.9576573371887207,
+            "euclidean": 0.06842886656522751,
+            "l2": 0.06842886656522751,
+            "edit_distance": 27
+        }
+    },
+    {
+        "index": 56,
+        "original": "divisible into three parts.",
+        "clean": {
+            "cue": "divisible into three parts.",
+            "reconstructed": "divisible into three parts",
+            "cosine": 1.0,
+            "euclidean": 4.506913319346495e-05,
+            "l2": 4.506913683144376e-05,
+            "edit_distance": 1
+        },
+        "noise": {
+            "cue": "divisible into thaee parts",
+            "reconstructed": "divisible into thaee parts",
+            "cosine": 0.9999998807907104,
+            "euclidean": 9.079354640562087e-05,
+            "l2": 9.079353912966326e-05,
+            "edit_distance": 0
+        }
+    },
+    {
+        "index": 57,
+        "original": "ill luck; ill fortune; mishap.-to happen by mischance.",
+        "clean": {
+            "cue": "ill luck; ill fortune; mishap.-to happen by mischance.",
+            "reconstructed": "bad luck; bad luck; mischance-to happen by mischance.",
+            "cosine": 0.9391469955444336,
+            "euclidean": 0.08330366015434265,
+            "l2": 0.08330365270376205,
+            "edit_distance": 16
+        },
+        "noise": {
+            "cue": "ill luck; ill fortune; mishaj.-to happen by mischance.",
+            "reconstructed": "bad luck; bad luck; mishaj",
+            "cosine": 0.9793228507041931,
+            "euclidean": 0.03917020186781883,
+            "l2": 0.03917020186781883,
+            "edit_distance": 37
+        }
+    },
+    {
+        "index": 58,
+        "original": "an amorphous variety of manna obtained from the nests and cocoons of a syrian coleopterous insect (larinus maculatus, l. nidificans, etc.) which feeds on the foliage of a variety of thistle. it is used as an article of food, and is called also nest sugar.",
+        "clean": {
+            "cue": "an amorphous variety of manna obtained from the nests and cocoons of a syrian coleopterous insect (larinus maculatus, l. nidificans, etc.) which feeds on the foliage of a variety of thistle. it is used as an article of food, and is called also nest sugar.",
+            "reconstructed": "an amorphous variety of manna obtained from the nests and cocoons of a Syrian coleopteran insect (larinus maculatus, l)",
+            "cosine": 0.9896895289421082,
+            "euclidean": 0.040716398507356644,
+            "l2": 0.040716398507356644,
+            "edit_distance": 138
+        },
+        "noise": {
+            "cue": "an amorphous variety of manna obtained from the nests and cocoons of a syrian coleopterous insect (larinuu maculatus, l",
+            "reconstructed": "an amorphous variety of manna obtained from the nests and cocoons of a Syrian coleopteran insect (larinuru maculatus, l)",
+            "cosine": 0.9721366167068481,
+            "euclidean": 0.06795905530452728,
+            "l2": 0.06795906275510788,
+            "edit_distance": 5
+        }
+    },
+    {
+        "index": 59,
+        "original": "fertile. see battel, a.-a general action, fight, or encounter, in which all the divisions of an army are or may be engaged; an engagement; a combat.-a struggle; a contest; as, the battle of life.-a division of an army; a battalion.-the main body, as distinct from the van and rear; battalia.-to join in battle; to contend in fight; as, to battle over theories.-to assail in battle; to fight.",
+        "clean": {
+            "cue": "fertile. see battel, a.-a general action, fight, or encounter, in which all the divisions of an army are or may be engaged; an engagement; a combat.-a struggle; a contest; as, the battle of life.-a division of an army; a battalion.-the main body, as distinct from the van and rear; battalia.-to join in battle; to contend in fight; as, to battle over theories.-to assail in battle; to fight.",
+            "reconstructed": "fertile",
+            "cosine": 0.9999998807907104,
+            "euclidean": 0.00012842172873206437,
+            "l2": 0.0001284217432839796,
+            "edit_distance": 384
+        },
+        "noise": {
+            "cue": "ferfile",
+            "reconstructed": "ferfile",
+            "cosine": 1.0,
+            "euclidean": 0.00011120089038740844,
+            "l2": 0.00011120089766336605,
+            "edit_distance": 0
+        }
+    },
+    {
+        "index": 60,
+        "original": "of quiz",
+        "clean": {
+            "cue": "of quiz",
+            "reconstructed": "of quiz",
+            "cosine": 1.0,
+            "euclidean": 0.00010240305709885433,
+            "l2": 0.00010240304982289672,
+            "edit_distance": 0
+        },
+        "noise": {
+            "cue": "of quxz",
+            "reconstructed": "of quxz",
+            "cosine": 0.9999998807907104,
+            "euclidean": 9.219093044521287e-05,
+            "l2": 9.219093772117049e-05,
+            "edit_distance": 0
+        }
+    },
+    {
+        "index": 61,
+        "original": "small patties.",
+        "clean": {
+            "cue": "small patties.",
+            "reconstructed": "small patties",
+            "cosine": 0.9999999403953552,
+            "euclidean": 7.79930705903098e-05,
+            "l2": 7.799308514222503e-05,
+            "edit_distance": 1
+        },
+        "noise": {
+            "cue": "smaly patties",
+            "reconstructed": "smallty patties",
+            "cosine": 0.9287431240081787,
+            "euclidean": 0.0840890184044838,
+            "l2": 0.0840890184044838,
+            "edit_distance": 2
+        }
+    },
+    {
+        "index": 62,
+        "original": "abounding in platitudes; of the nature of platitudes; uttering platitudes.",
+        "clean": {
+            "cue": "abounding in platitudes; of the nature of platitudes; uttering platitudes.",
+            "reconstructed": "abounding in platitudes; of the nature of platitudes; uttering platitudes",
+            "cosine": 1.0,
+            "euclidean": 3.883353929268196e-05,
+            "l2": 3.883354293066077e-05,
+            "edit_distance": 1
+        },
+        "noise": {
+            "cue": "abounding in platitmdes; of the nature of platitudes; uttering platitudes",
+            "reconstructed": "abounding in platitmudes; of the nature of platitudes; uttering platitias",
+            "cosine": 0.9122554063796997,
+            "euclidean": 0.09723229706287384,
+            "l2": 0.09723229706287384,
+            "edit_distance": 4
+        }
+    },
+    {
+        "index": 63,
+        "original": "the exterior opening of a stomate. see stomate.-any small orifice.",
+        "clean": {
+            "cue": "the exterior opening of a stomate. see stomate.-any small orifice.",
+            "reconstructed": "the external opening of a stomate",
+            "cosine": 0.9890978932380676,
+            "euclidean": 0.026937561109662056,
+            "l2": 0.026937562972307205,
+            "edit_distance": 36
+        },
+        "noise": {
+            "cue": "the exterfor opening of a stomate",
+            "reconstructed": "the externfor opening of a stomate",
+            "cosine": 0.9198924899101257,
+            "euclidean": 0.08374349027872086,
+            "l2": 0.08374349027872086,
+            "edit_distance": 1
+        }
+    },
+    {
+        "index": 64,
+        "original": "of jewel",
+        "clean": {
+            "cue": "of jewel",
+            "reconstructed": "of jewel",
+            "cosine": 0.9999998807907104,
+            "euclidean": 7.315427501453087e-05,
+            "l2": 7.315427501453087e-05,
+            "edit_distance": 0
+        },
+        "noise": {
+            "cue": "oe jewel",
+            "reconstructed": "oe jewel",
+            "cosine": 1.0000001192092896,
+            "euclidean": 8.526464807800949e-05,
+            "l2": 8.52646553539671e-05,
+            "edit_distance": 0
+        }
+    },
+    {
+        "index": 65,
+        "original": "the genus of plants including the primrose (primula vera).",
+        "clean": {
+            "cue": "the genus of plants including the primrose (primula vera).",
+            "reconstructed": "the genus of plants including primrose (primula vera)",
+            "cosine": 0.9955397248268127,
+            "euclidean": 0.02220349945127964,
+            "l2": 0.02220349758863449,
+            "edit_distance": 5
+        },
+        "noise": {
+            "cue": "the genus of plants including the primrose (primula vern)",
+            "reconstructed": "the genus of plants including primrose (primula vern)",
+            "cosine": 0.9948461651802063,
+            "euclidean": 0.024819348007440567,
+            "l2": 0.024819349870085716,
+            "edit_distance": 4
+        }
+    },
+    {
+        "index": 66,
+        "original": "dug out of the earth; as, fossil coal; fossil salt.-like or pertaining to fossils; contained in rocks, whether petrified or not; as, fossil plants, shells.-a substance dug from the earth.-the remains of an animal or plant found in stratified rocks. most fossils belong to extinct species, but many of the later ones belong to species still living.-a person whose views and opinions are extremely antiquated; one whose sympathies are with a former time rather than with the present.",
+        "clean": {
+            "cue": "dug out of the earth; as, fossil coal; fossil salt.-like or pertaining to fossils; contained in rocks, whether petrified or not; as, fossil plants, shells.-a substance dug from the earth.-the remains of an animal or plant found in stratified rocks. most fossils belong to extinct species, but many of the later ones belong to species still living.-a person whose views and opinions are extremely antiquated; one whose sympathies are with a former time rather than with the present.",
+            "reconstructed": "Excavated from the earth; as fossil coal; as fossil salt; as fossil-like, but contained in fossils; as fossil, but not in petrified rocks; as fossil, but contained in plants; as fossil animal - the remains of an organism or animal excavated from a rock. Most of the fossils belong to extinct species, but most of the fossils belong to more recent species.",
+            "cosine": 0.6688377857208252,
+            "euclidean": 0.2544442117214203,
+            "l2": 0.2544442117214203,
+            "edit_distance": 296
+        },
+        "noise": {
+            "cue": "dug out of the earth; as, fossil coal; fossil salt.-like or pertaining tj fossils; contained in rocks, whether petrified or not; as, fossil plants, shells.-a substance dug from the earth.-the remains of an anbmal or plant found in stratified rocks. most fossils belong to extinct species, but many of the later ones belong to species still living.-a person whose views and opinions are extremely antiquated; one whose sympathies are with a former time rather than with the present.",
+            "reconstructed": "excavated from the earth; as fossil coal; as fossil salt; as fossil-like salts or salts, as found in fossil; as fossil, but not in petrified rocks; as fossil, but not in plants; as fossil, but not in rocks; as fossil, but not in rocks; as fossil, but not in rocks; as fossil, but in rocks; as fossil, but not in rocks; as fossil, but in rocks; as fossil, but not in rocks",
+            "cosine": 0.5406146049499512,
+            "euclidean": 0.28632697463035583,
+            "l2": 0.28632697463035583,
+            "edit_distance": 317
+        }
+    },
+    {
+        "index": 67,
+        "original": "of lobby",
+        "clean": {
+            "cue": "of lobby",
+            "reconstructed": "of lobby",
+            "cosine": 1.0,
+            "euclidean": 7.68370446166955e-05,
+            "l2": 7.683705189265311e-05,
+            "edit_distance": 0
+        },
+        "noise": {
+            "cue": "of lxbby",
+            "reconstructed": "of lxbby",
+            "cosine": 0.9999998211860657,
+            "euclidean": 7.265625754371285e-05,
+            "l2": 7.265626481967047e-05,
+            "edit_distance": 0
+        }
+    },
+    {
+        "index": 68,
+        "original": "of outstrip",
+        "clean": {
+            "cue": "of outstrip",
+            "reconstructed": "of outstrip",
+            "cosine": 0.9999999403953552,
+            "euclidean": 8.658982551423833e-05,
+            "l2": 8.658982551423833e-05,
+            "edit_distance": 0
+        },
+        "noise": {
+            "cue": "of tutstrip",
+            "reconstructed": "of tutstrip",
+            "cosine": 0.9999997615814209,
+            "euclidean": 9.107090590987355e-05,
+            "l2": 9.107091318583116e-05,
+            "edit_distance": 0
+        }
+    },
+    {
+        "index": 69,
+        "original": "the state of being flush; abundance.",
+        "clean": {
+            "cue": "the state of being flush; abundance.",
+            "reconstructed": "the state of being flush; abundance",
+            "cosine": 1.0000001192092896,
+            "euclidean": 5.1873324991902336e-05,
+            "l2": 5.1873324991902336e-05,
+            "edit_distance": 1
+        },
+        "noise": {
+            "cue": "the state ou being flush; abundance",
+            "reconstructed": "the state o being flush; abundance",
+            "cosine": 0.9227684736251831,
+            "euclidean": 0.07696058601140976,
+            "l2": 0.07696058601140976,
+            "edit_distance": 1
+        }
+    },
+    {
+        "index": 70,
+        "original": "see placophora.",
+        "clean": {
+            "cue": "see placophora.",
+            "reconstructed": "see placophora",
+            "cosine": 1.0000001192092896,
+            "euclidean": 9.858849080046639e-05,
+            "l2": 9.8588498076424e-05,
+            "edit_distance": 1
+        },
+        "noise": {
+            "cue": "see plwcophora",
+            "reconstructed": "see plwcophora",
+            "cosine": 1.0,
+            "euclidean": 7.67485034884885e-05,
+            "l2": 7.674851076444611e-05,
+            "edit_distance": 0
+        }
+    },
+    {
+        "index": 71,
+        "original": "of wound",
+        "clean": {
+            "cue": "of wound",
+            "reconstructed": "of injury",
+            "cosine": 0.840459406375885,
+            "euclidean": 0.1328236609697342,
+            "l2": 0.1328236609697342,
+            "edit_distance": 5
+        },
+        "noise": {
+            "cue": "oo wound",
+            "reconstructed": "oo wound",
+            "cosine": 0.9999998211860657,
+            "euclidean": 0.00010566421406110749,
+            "l2": 0.0001056642213370651,
+            "edit_distance": 0
+        }
+    },
+    {
+        "index": 72,
+        "original": "illumined by the moon.",
+        "clean": {
+            "cue": "illumined by the moon.",
+            "reconstructed": "illumined by the moon",
+            "cosine": 1.0,
+            "euclidean": 3.685435513034463e-05,
+            "l2": 3.6854358768323436e-05,
+            "edit_distance": 1
+        },
+        "noise": {
+            "cue": "illumrned by the moon",
+            "reconstructed": "illuminated by the moon",
+            "cosine": 0.9314517378807068,
+            "euclidean": 0.060742828994989395,
+            "l2": 0.0607428252696991,
+            "edit_distance": 3
+        }
+    },
+    {
+        "index": 73,
+        "original": "joint inheritance.",
+        "clean": {
+            "cue": "joint inheritance.",
+            "reconstructed": "joint inheritance",
+            "cosine": 0.9999999403953552,
+            "euclidean": 7.705643656663597e-05,
+            "l2": 7.705644384259358e-05,
+            "edit_distance": 1
+        },
+        "noise": {
+            "cue": "joint inheritatce",
+            "reconstructed": "joint inheritance",
+            "cosine": 0.9543490409851074,
+            "euclidean": 0.0770397037267685,
+            "l2": 0.0770397037267685,
+            "edit_distance": 1
+        }
+    },
+    {
+        "index": 74,
+        "original": "one of an association of robbers and murderers in india who practiced murder by stealthy approaches, and from religious motives. they have been nearly exterminated by the british government.",
+        "clean": {
+            "cue": "one of an association of robbers and murderers in india who practiced murder by stealthy approaches, and from religious motives. they have been nearly exterminated by the british government.",
+            "reconstructed": "One of an association of robbers and killers in India who practiced killing by stealthy approaches, and from religious motives",
+            "cosine": 0.9736012816429138,
+            "euclidean": 0.055094216018915176,
+            "l2": 0.05509421229362488,
+            "edit_distance": 76
+        },
+        "noise": {
+            "cue": "one of an association of robbers and murdkrers in india who practiced murder by stealthy approaches, and from religious motives",
+            "reconstructed": "One of an association of robbers and murderers in India who practiced killing by stealthy approaches, and from religious motives",
+            "cosine": 0.9654637575149536,
+            "euclidean": 0.06294180452823639,
+            "l2": 0.06294179707765579,
+            "edit_distance": 8
+        }
+    },
+    {
+        "index": 75,
+        "original": "invulnerability.",
+        "clean": {
+            "cue": "invulnerability.",
+            "reconstructed": "invulnerability",
+            "cosine": 0.9999998807907104,
+            "euclidean": 8.034567872527987e-05,
+            "l2": 8.034567872527987e-05,
+            "edit_distance": 1
+        },
+        "noise": {
+            "cue": "invulnerabitity",
+            "reconstructed": "invulnerability",
+            "cosine": 0.86318039894104,
+            "euclidean": 0.12247739732265472,
+            "l2": 0.12247739732265472,
+            "edit_distance": 1
+        }
+    },
+    {
+        "index": 76,
+        "original": "that part of medicine which treats of urine.",
+        "clean": {
+            "cue": "that part of medicine which treats of urine.",
+            "reconstructed": "that part of medicine that treats urine",
+            "cosine": 0.9770622253417969,
+            "euclidean": 0.043050412088632584,
+            "l2": 0.043050412088632584,
+            "edit_distance": 8
+        },
+        "noise": {
+            "cue": "that part of medicgne which treats of urine",
+            "reconstructed": "that part of the medicinal product that treats urine",
+            "cosine": 0.946033775806427,
+            "euclidean": 0.07258850336074829,
+            "l2": 0.0725884959101677,
+            "edit_distance": 20
+        }
+    },
+    {
+        "index": 77,
+        "original": "pertaining to, or derived from camphor.",
+        "clean": {
+            "cue": "pertaining to, or derived from camphor.",
+            "reconstructed": "belonging to, or derived from camphor",
+            "cosine": 0.9733191728591919,
+            "euclidean": 0.05984984710812569,
+            "l2": 0.059849850833415985,
+            "edit_distance": 7
+        },
+        "noise": {
+            "cue": "pertaining to, dr derived from camphor",
+            "reconstructed": "relating to, dr derived from camphor",
+            "cosine": 0.982880711555481,
+            "euclidean": 0.048645153641700745,
+            "l2": 0.04864515736699104,
+            "edit_distance": 5
+        }
+    },
+    {
+        "index": 78,
+        "original": "of tire-woman",
+        "clean": {
+            "cue": "of tire-woman",
+            "reconstructed": "of tire-woman",
+            "cosine": 0.9999998807907104,
+            "euclidean": 7.80227710492909e-05,
+            "l2": 7.802277832524851e-05,
+            "edit_distance": 0
+        },
+        "noise": {
+            "cue": "of tine-woman",
+            "reconstructed": "of tine-woman",
+            "cosine": 0.9999998211860657,
+            "euclidean": 6.622515502385795e-05,
+            "l2": 6.622515502385795e-05,
+            "edit_distance": 0
+        }
+    },
+    {
+        "index": 79,
+        "original": "to fall or glide; to pass; -- usually followed by into.-a gliding in; an immisson or entrance of one thing into another; also, a sudden descent or attack.",
+        "clean": {
+            "cue": "to fall or glide; to pass; -- usually followed by into.-a gliding in; an immisson or entrance of one thing into another; also, a sudden descent or attack.",
+            "reconstructed": "-a gliding in; an immanence or entry of one thing into another; also, a sudden descent or attack",
+            "cosine": 0.9466482996940613,
+            "euclidean": 0.08145441859960556,
+            "l2": 0.08145441859960556,
+            "edit_distance": 66
+        },
+        "noise": {
+            "cue": "-a gliding in; an immisson or entrance ob one thing into another; also, a sudden descent or attack",
+            "reconstructed": "-a gliding in; an immiseration or entry one into another; also, a sudden descent or attack",
+            "cosine": 0.8831380605697632,
+            "euclidean": 0.11727864295244217,
+            "l2": 0.11727864295244217,
+            "edit_distance": 18
+        }
+    },
+    {
+        "index": 80,
+        "original": "heedful; intent; observant; regarding with care or attention.-heedful of the comfort of others; courteous.",
+        "clean": {
+            "cue": "heedful; intent; observant; regarding with care or attention.-heedful of the comfort of others; courteous.",
+            "reconstructed": "diligent; intent; observant; with regard to care or attention",
+            "cosine": 0.9094691872596741,
+            "euclidean": 0.09105539321899414,
+            "l2": 0.09105539321899414,
+            "edit_distance": 65
+        },
+        "noise": {
+            "cue": "heedful; intent; observant; regarding wtth care or attention",
+            "reconstructed": "attentive; intent; observant; with regard to care or attention",
+            "cosine": 0.9193467497825623,
+            "euclidean": 0.08586665987968445,
+            "l2": 0.08586665987968445,
+            "edit_distance": 19
+        }
+    },
+    {
+        "index": 81,
+        "original": "that form of church government which invests presbyters with all spiritual power, and admits no prelates over them; also, the faith and polity of the presbyterian churches, taken collectively.",
+        "clean": {
+            "cue": "that form of church government which invests presbyters with all spiritual power, and admits no prelates over them; also, the faith and polity of the presbyterian churches, taken collectively.",
+            "reconstructed": "that form of church government which confers on presbyters all spiritual power, and admits no prelates over them; also, the faith and politics of the presbyterian churches, taken collectively",
+            "cosine": 0.9696383476257324,
+            "euclidean": 0.0566830113530159,
+            "l2": 0.0566830113530159,
+            "edit_distance": 16
+        },
+        "noise": {
+            "cue": "that form of church government which invests presbyters with all spiritual poweg, and admits no prelates over them; also, the faith and polity of the presbyterian churches, taken collectively",
+            "reconstructed": "that form of church government which confers presbyters with all spiritual power, and admits no prelates over them; also, the faith and politics of the presbyterian churches, taken collectively",
+            "cosine": 0.9397451877593994,
+            "euclidean": 0.08249986171722412,
+            "l2": 0.08249986916780472,
+            "edit_distance": 9
+        }
+    },
+    {
+        "index": 82,
+        "original": "to run in dept by getting goods made up in a way unsuitable for the use of others, and then threatening not to take them except on credit.-to veneer.",
+        "clean": {
+            "cue": "to run in dept by getting goods made up in a way unsuitable for the use of others, and then threatening not to take them except on credit.-to veneer.",
+            "reconstructed": "go in distress by obtaining goods made in a manner unsuitable for the use of others, and then threatening to not take them except on credit",
+            "cosine": 0.9377114176750183,
+            "euclidean": 0.07620544731616974,
+            "l2": 0.07620543986558914,
+            "edit_distance": 38
+        },
+        "noise": {
+            "cue": "to run in dept by getting goods made up in a waa unsuitable for the use of others, and then threatening not to take them except on credit",
+            "reconstructed": "go in distress by getting goods made in a manner unsuitable for the use of others, and then threatening to not take them except on credit",
+            "cosine": 0.9264917373657227,
+            "euclidean": 0.08351152390241623,
+            "l2": 0.08351152390241623,
+            "edit_distance": 21
+        }
+    },
+    {
+        "index": 83,
+        "original": "the huntsman's cry to incite or urge on his hounds.-a tallyho coach.",
+        "clean": {
+            "cue": "the huntsman's cry to incite or urge on his hounds.-a tallyho coach.",
+            "reconstructed": "the hunter's cry to instigate or urge on his hounds",
+            "cosine": 0.9765423536300659,
+            "euclidean": 0.040656641125679016,
+            "l2": 0.04065663740038872,
+            "edit_distance": 26
+        },
+        "noise": {
+            "cue": "the huntsman's cry to incite or urge on hig hounds",
+            "reconstructed": "the hunter's cry to instigate or urge on high hounds",
+            "cosine": 0.9543320536613464,
+            "euclidean": 0.05680986866354942,
+            "l2": 0.05680986866354942,
+            "edit_distance": 9
+        }
+    },
+    {
+        "index": 84,
+        "original": "hard; inflexible; obstinate; sour in aspect; hardy; bold.",
+        "clean": {
+            "cue": "hard; inflexible; obstinate; sour in aspect; hardy; bold.",
+            "reconstructed": "hard; inflexible; stubborn; acid in appearance; hardy; bold",
+            "cosine": 0.9480334520339966,
+            "euclidean": 0.07521102577447891,
+            "l2": 0.07521102577447891,
+            "edit_distance": 19
+        },
+        "noise": {
+            "cue": "hard; inflexible; obstinate; sour in aspect; haydy; bold",
+            "reconstructed": "hard; inflexible; stubborn; acid in appearance; heady; bold",
+            "cosine": 0.9118983745574951,
+            "euclidean": 0.09750986844301224,
+            "l2": 0.09750986099243164,
+            "edit_distance": 20
+        }
+    },
+    {
+        "index": 85,
+        "original": "the space inclosed between ranges of hills or mountains; the strip of land at the bottom of the depressions intersecting a country, including usually the bed of a stream, with frequently broad alluvial plains on one or both sides of the stream. also used figuratively.-the place of meeting of two slopes of a roof, which have their plates running in different directions, and form on the plan a reentrant angle.-the depression formed by the meeting of two slopes on a flat roof.",
+        "clean": {
+            "cue": "the space inclosed between ranges of hills or mountains; the strip of land at the bottom of the depressions intersecting a country, including usually the bed of a stream, with frequently broad alluvial plains on one or both sides of the stream. also used figuratively.-the place of meeting of two slopes of a roof, which have their plates running in different directions, and form on the plan a reentrant angle.-the depression formed by the meeting of two slopes on a flat roof.",
+            "reconstructed": "the space enclosed between ranges of hills or mountains; the strip of land at the bottom of the depressions enclosing a country, usually including the floor of a stream, with often wide alluvial plains on either or both sides of the stream",
+            "cosine": 0.9667526483535767,
+            "euclidean": 0.06951186060905457,
+            "l2": 0.06951186805963516,
+            "edit_distance": 276
+        },
+        "noise": {
+            "cue": "the space inclosed between ranges of hills or mountains; the strip of land at the bottom of the depressions intersecting a country, incluhing usually the bed of a stream, with frequently broad alluvial plains on one or both sides of the stream",
+            "reconstructed": "the space enclosed between ranges of hills or mountains; the ground strip at the bottom of depressions enclosing a country, usually including a stream bed, with often wide alluvial plains on one or both sides of the stream",
+            "cosine": 0.9647072553634644,
+            "euclidean": 0.07219211757183075,
+            "l2": 0.07219211012125015,
+            "edit_distance": 60
+        }
+    },
+    {
+        "index": 86,
+        "original": "of asperate",
+        "clean": {
+            "cue": "of asperate",
+            "reconstructed": "of asperate",
+            "cosine": 0.9999998807907104,
+            "euclidean": 7.395197462756187e-05,
+            "l2": 7.395198190351948e-05,
+            "edit_distance": 0
+        },
+        "noise": {
+            "cue": "of aspnrate",
+            "reconstructed": "of aspnrat",
+            "cosine": 0.9644532799720764,
+            "euclidean": 0.07142723351716995,
+            "l2": 0.07142723351716995,
+            "edit_distance": 1
+        }
+    },
+    {
+        "index": 87,
+        "original": "a medicine made by mixing oils with sirups.",
+        "clean": {
+            "cue": "a medicine made by mixing oils with sirups.",
+            "reconstructed": "a medicine made by mixing oils with syrups",
+            "cosine": 0.9929338693618774,
+            "euclidean": 0.025074170902371407,
+            "l2": 0.025074167177081108,
+            "edit_distance": 2
+        },
+        "noise": {
+            "cue": "a medicine made by mixing sils with sirups",
+            "reconstructed": "a medicine made by mixing silks with syrups",
+            "cosine": 0.9366624355316162,
+            "euclidean": 0.07536901533603668,
+            "l2": 0.07536900788545609,
+            "edit_distance": 2
+        }
+    },
+    {
+        "index": 88,
+        "original": "of surmount",
+        "clean": {
+            "cue": "of surmount",
+            "reconstructed": "of surmount",
+            "cosine": 0.9999999403953552,
+            "euclidean": 0.00014581935829482973,
+            "l2": 0.00014581935829482973,
+            "edit_distance": 0
+        },
+        "noise": {
+            "cue": "of surmnunt",
+            "reconstructed": "of surplusnunt",
+            "cosine": 0.8688492774963379,
+            "euclidean": 0.12963148951530457,
+            "l2": 0.12963148951530457,
+            "edit_distance": 4
+        }
+    },
+    {
+        "index": 89,
+        "original": "a small cannon supported by a swiveled rest on the back of a camel, whence it is fired, -- used in the east.",
+        "clean": {
+            "cue": "a small cannon supported by a swiveled rest on the back of a camel, whence it is fired, -- used in the east.",
+            "reconstructed": "a small cannon supported by a swiveling rest on the back of a camel, from where it is fired, -- used in the east",
+            "cosine": 0.9835295677185059,
+            "euclidean": 0.04289450868964195,
+            "l2": 0.042894504964351654,
+            "edit_distance": 11
+        },
+        "noise": {
+            "cue": "a small cannon supported by a swiveled rest on the back of f camel, whence it is fired, -- used in the east",
+            "reconstructed": "a small cannon supported by a twisted rest on the back of a camel f, from where it is fired, -- used in eastern",
+            "cosine": 0.9406371712684631,
+            "euclidean": 0.07887668162584305,
+            "l2": 0.07887668162584305,
+            "edit_distance": 21
+        }
+    },
+    {
+        "index": 90,
+        "original": "to append.",
+        "clean": {
+            "cue": "to append.",
+            "reconstructed": "to append",
+            "cosine": 0.9999999403953552,
+            "euclidean": 7.75515436544083e-05,
+            "l2": 7.75515436544083e-05,
+            "edit_distance": 1
+        },
+        "noise": {
+            "cue": "tp append",
+            "reconstructed": "tp append",
+            "cosine": 1.0,
+            "euclidean": 0.0001038067857734859,
+            "l2": 0.0001038067857734859,
+            "edit_distance": 0
+        }
+    },
+    {
+        "index": 91,
+        "original": "denoting equality or likeness in kind, degree, or manner; like; similar to; in the same manner with or in which; in accordance with; in proportion to; to the extent or degree in which or to which; equally; no less than; as, ye shall be as gods, knowing good and evil; you will reap as you sow; do as you are bidden.-in the idea, character, or condition of, -- limiting the view to certain attributes or relations; as, virtue considered as virtue; this actor will appear as hamlet.-while; during or at the same time that; when; as, he trembled as he spoke.-because; since; it being the case that.-expressing concession. (often approaching though in meaning).-that, introducing or expressing a result or consequence, after the correlatives so and such.-as if; as though.-for instance; by way of example; thus; -- used to introduce illustrative phrases, sentences, or citations.-than.-expressing a wish.-an ace.-a roman weight, answering to the libra or pound, equal to nearly eleven ounces troy weight. it was divided into twelve ounces.-a roman copper coin, originally of a pound weight (12 oz.); but reduced, after the first punic war, to two ounces; in the second punic war, to one ounce; and afterwards to half an ounce.",
+        "clean": {
+            "cue": "denoting equality or likeness in kind, degree, or manner; like; similar to; in the same manner with or in which; in accordance with; in proportion to; to the extent or degree in which or to which; equally; no less than; as, ye shall be as gods, knowing good and evil; you will reap as you sow; do as you are bidden.-in the idea, character, or condition of, -- limiting the view to certain attributes or relations; as, virtue considered as virtue; this actor will appear as hamlet.-while; during or at the same time that; when; as, he trembled as he spoke.-because; since; it being the case that.-expressing concession. (often approaching though in meaning).-that, introducing or expressing a result or consequence, after the correlatives so and such.-as if; as though.-for instance; by way of example; thus; -- used to introduce illustrative phrases, sentences, or citations.-than.-expressing a wish.-an ace.-a roman weight, answering to the libra or pound, equal to nearly eleven ounces troy weight. it was divided into twelve ounces.-a roman copper coin, originally of a pound weight (12 oz.); but reduced, after the first punic war, to two ounces; in the second punic war, to one ounce; and afterwards to half an ounce.",
+            "reconstructed": "denoting equality in kind, degree or manner; similar; in the same way; equal to or in accordance with; in proportion to; in proportion to; to the degree or degree; equal to or less than; in the same way; no less than; you will be as gods, knowing good and evil; you will reap as you sow; do as you are commanded",
+            "cosine": 0.9204646348953247,
+            "euclidean": 0.121268130838871,
+            "l2": 0.1212681233882904,
+            "edit_distance": 962
+        },
+        "noise": {
+            "cue": "denoting equality or likeness in kind, degree, or mabner; like; similar to; in the same manner with or in which; in accordance with; in proportion to; to the extent or degree in which or to which; equally; no less than; as, ye shall be as gods, knowing good and evil; you will reap as you sow; do as you are bidden",
+            "reconstructed": "denoting equality in nature or degree, like or mabbern; similar; in the same; equal to or in the same way; in proportion to; in accordance with; to the extent or degree of; equal to or less than; in the same way; no less than; you will be as gods, knowing good and evil; you will reap what you sow; do as you are commanded",
+            "cosine": 0.9219149947166443,
+            "euclidean": 0.12968900799751282,
+            "l2": 0.12968900799751282,
+            "edit_distance": 127
+        }
+    },
+    {
+        "index": 92,
+        "original": "to reject by judicial sentence; also, to abjudge.",
+        "clean": {
+            "cue": "to reject by judicial sentence; also, to abjudge.",
+            "reconstructed": "to reject by judicial sentence; also, to abjudge",
+            "cosine": 0.9999999403953552,
+            "euclidean": 4.9044891056837514e-05,
+            "l2": 4.9044891056837514e-05,
+            "edit_distance": 1
+        },
+        "noise": {
+            "cue": "to reject by jedicial sentence; also, to abjudge",
+            "reconstructed": "to reject by jedicial sentence; also, to abjudge",
+            "cosine": 1.0,
+            "euclidean": 5.215163764660247e-05,
+            "l2": 5.2151641284581274e-05,
+            "edit_distance": 0
+        }
+    },
+    {
+        "index": 93,
+        "original": "to water; to wet; to moisten with running or dropping water; to bedew.-to water, as land, by causing a stream to flow upon, over, or through it, as in artificial channels.",
+        "clean": {
+            "cue": "to water; to wet; to moisten with running or dropping water; to bedew.-to water, as land, by causing a stream to flow upon, over, or through it, as in artificial channels.",
+            "reconstructed": "-to water, as land, by causing a stream to flow on, over, or through it, as in artificial canals",
+            "cosine": 0.9941309094429016,
+            "euclidean": 0.026119735091924667,
+            "l2": 0.026119736954569817,
+            "edit_distance": 76
+        },
+        "noise": {
+            "cue": "-to water, as land, py causing a stream to flow upon, over, or through it, as in artificial channels",
+            "reconstructed": "- to water, as land, causing a stream to flow on, over, or through it, as in artificial canals",
+            "cosine": 0.9454452395439148,
+            "euclidean": 0.07948718965053558,
+            "l2": 0.07948718965053558,
+            "edit_distance": 9
+        }
+    },
+    {
+        "index": 94,
+        "original": "a fossil leaf or impression of a leaf.",
+        "clean": {
+            "cue": "a fossil leaf or impression of a leaf.",
+            "reconstructed": "a fossil leaf or impression of a leaf",
+            "cosine": 0.9999998807907104,
+            "euclidean": 5.6831599067663774e-05,
+            "l2": 5.683160270564258e-05,
+            "edit_distance": 1
+        },
+        "noise": {
+            "cue": "a fossil leaf or impressvon of a leaf",
+            "reconstructed": "a fossil leaf or imprint of a leaf",
+            "cosine": 0.964469850063324,
+            "euclidean": 0.06012970209121704,
+            "l2": 0.06012970209121704,
+            "edit_distance": 6
+        }
+    },
+    {
+        "index": 95,
+        "original": "a clumsy vessel that works its way from one anchorage to another by means of the tides.-a horse that is accustomed to traveling on the high road, or is suitable for use on ordinary roads.-a bicycle or tricycle adapted for common roads rather than for the racing track.-one who drives much; a coach driver.-a hunter who keeps to the roads instead of following the hounds across country.",
+        "clean": {
+            "cue": "a clumsy vessel that works its way from one anchorage to another by means of the tides.-a horse that is accustomed to traveling on the high road, or is suitable for use on ordinary roads.-a bicycle or tricycle adapted for common roads rather than for the racing track.-one who drives much; a coach driver.-a hunter who keeps to the roads instead of following the hounds across country.",
+            "reconstructed": "-a horse that is accustomed to travel on highway, or is suitable for use on normal roads",
+            "cosine": 0.9573225378990173,
+            "euclidean": 0.05760921537876129,
+            "l2": 0.05760921537876129,
+            "edit_distance": 300
+        },
+        "noise": {
+            "cue": "-a horse that is accustomed to traveling on the jigh road, or is suitable for use on ordinary roads",
+            "reconstructed": "-a horse that is accustomed to traveling on the jigh road, or is suitable for use on normal roads",
+            "cosine": 0.9851067066192627,
+            "euclidean": 0.034185685217380524,
+            "l2": 0.034185685217380524,
+            "edit_distance": 6
+        }
+    },
+    {
+        "index": 96,
+        "original": "of tattoo",
+        "clean": {
+            "cue": "of tattoo",
+            "reconstructed": "of tattoo",
+            "cosine": 0.9999998807907104,
+            "euclidean": 0.00010969810682581738,
+            "l2": 0.00010969809227390215,
+            "edit_distance": 0
+        },
+        "noise": {
+            "cue": "of tatyoo",
+            "reconstructed": "of tatyoo",
+            "cosine": 0.9999998211860657,
+            "euclidean": 0.00010185892460867763,
+            "l2": 0.00010185892460867763,
+            "edit_distance": 0
+        }
+    },
+    {
+        "index": 97,
+        "original": "a writer of comments.",
+        "clean": {
+            "cue": "a writer of comments.",
+            "reconstructed": "a writer of comments",
+            "cosine": 1.0,
+            "euclidean": 5.3080857469467446e-05,
+            "l2": 5.308086110744625e-05,
+            "edit_distance": 1
+        },
+        "noise": {
+            "cue": "a uriter of comments",
+            "reconstructed": "a uriter of comments",
+            "cosine": 1.0,
+            "euclidean": 6.251345621421933e-05,
+            "l2": 6.251346349017695e-05,
+            "edit_distance": 0
+        }
+    },
+    {
+        "index": 98,
+        "original": "a spanish dance, or the lively music which accompanies it.",
+        "clean": {
+            "cue": "a spanish dance, or the lively music which accompanies it.",
+            "reconstructed": "a spanish dance, or the lively music that accompanies it",
+            "cosine": 0.9896857142448425,
+            "euclidean": 0.026107028126716614,
+            "l2": 0.026107028126716614,
+            "edit_distance": 5
+        },
+        "noise": {
+            "cue": "a spanish dance, or the lively music which accompanies ht",
+            "reconstructed": "a Spanish dance, or the lively music which accompanies ht",
+            "cosine": 0.9884602427482605,
+            "euclidean": 0.020259914919734,
+            "l2": 0.020259914919734,
+            "edit_distance": 0
+        }
+    },
+    {
+        "index": 99,
+        "original": "medregal.",
+        "clean": {
+            "cue": "medregal.",
+            "reconstructed": "medregal",
+            "cosine": 1.0,
+            "euclidean": 8.760519995121285e-05,
+            "l2": 8.760519995121285e-05,
+            "edit_distance": 1
+        },
+        "noise": {
+            "cue": "medkegal",
+            "reconstructed": "medkegal",
+            "cosine": 1.0,
+            "euclidean": 0.00010841592302313074,
+            "l2": 0.00010841593029908836,
+            "edit_distance": 0
+        }
+    }
+]
