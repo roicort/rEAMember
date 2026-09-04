@@ -1,0 +1,50 @@
+{
+    "dataset": "npvinHnivqn/EnglishDictionary",
+    "latent_dim": 1024,
+    "memory_domain": 8192,
+    "sigma": 0.1,
+    "iota": 1.0,
+    "kappa": 0.0,
+    "xi": 50.0,
+    "seen_source": "clean_train",
+    "unseen_source": "noised_train",
+    "test_source": "noised_test",
+    "labels": {
+        "rows": [
+            "seen",
+            "unseen",
+            "test"
+        ],
+        "columns": [
+            "recognized",
+            "unrecognized"
+        ]
+    },
+    "matrix": [
+        [
+            5926,
+            94514
+        ],
+        [
+            877,
+            99563
+        ],
+        [
+            103,
+            11058
+        ]
+    ],
+    "counts": {
+        "seen_total": 100440,
+        "unseen_total": 100440,
+        "test_total": 11161
+    },
+    "rates": {
+        "seen_recognized_rate": 0.05900039824771008,
+        "seen_unrecognized_rate": 0.9409996017522899,
+        "unseen_recognized_rate": 0.008731581043409,
+        "unseen_unrecognized_rate": 0.991268418956591,
+        "test_recognized_rate": 0.009228563748768032,
+        "test_unrecognized_rate": 0.990771436251232
+    }
+}
