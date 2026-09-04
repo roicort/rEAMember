@@ -25,15 +25,15 @@ function timeit() {
     printf "%s: %dd %02dh %02dm %02ds\n" "$LABEL" "$DAYS" "$HOURS" "$MINUTES" "$SECONDS" >> "$TIMES_FILE"
 }
 
-timeit "uv run manage.py get-embeddings --config $CONFIG" "get-embeddings"
-timeit "uv run manage.py encoder test --config $CONFIG --n 100" "encoder test"
-timeit "uv run manage.py test-recall --config $CONFIG" "test-recall"
-timeit "uv run manage.py test-recall --config $CONFIG --noise" "test-recall noise"
+#timeit "uv run manage.py get-embeddings --config $CONFIG" "get-embeddings"
+#timeit "uv run manage.py encoder test --config $CONFIG --n 100" "encoder test"
+#timeit "uv run manage.py test-recall --config $CONFIG" "test-recall"
+#timeit "uv run manage.py test-recall --config $CONFIG --noise" "test-recall noise"
 
-timeit "uv run manage.py get-bestparams --config $CONFIG" "get-bestparams"
-timeit "uv run manage.py get-bestparams --config $CONFIG --noise" "get-bestparams noise"
+#timeit "uv run manage.py get-bestparams --config $CONFIG" "get-bestparams"
+#timeit "uv run manage.py get-bestparams --config $CONFIG --noise" "get-bestparams noise"
 
-timeit "uv run manage.py create-memories --config $BSTCONFIG --n 1000" "create-memories"
-timeit "uv run manage.py create-memories --config $BSTNCONFIG --noise --n 1000" "create-memories noise"
+#timeit "uv run manage.py create-memories --config $BSTCONFIG --n 1000" "create-memories"
+#timeit "uv run manage.py create-memories --config $BSTNCONFIG --noise --n 100" "create-memories noise"
 
-#uv run manage.py interactive --config $BSTCONFIG
+uv run manage.py interactive --config $BSTCONFIG

@@ -28,4 +28,7 @@ dependencies = [
     "nltk>=3.9.4",
     "gradio>=6.14.0",
     "ipywidgets>=8.1.8",
+    "transformers>=4.57.6",
+    "fastdtw>=0.3.4",
+    "sentence-splitter>=1.4",
 ]
