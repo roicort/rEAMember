@@ -1,0 +1,18 @@
+app:
+  dataset: npvinHnivqn/EnglishDictionary
+  column: definition
+  modality: text
+  seed: 42
+  noise: 0.003
+
+neural:
+  latent_dim: [1024]
+
+memory:
+  domain: [8192]
+  batch_size: [32]
+  filling: [1.0]
+  iota: [0.0]
+  kappa: [0.0]
+  xi: [30]
+  sigma: [0.06]
