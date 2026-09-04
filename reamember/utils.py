@@ -294,29 +294,48 @@ class Quant:
             )
         return zip(values, self.minima, self.maxima)
 
+    def _get_bounds(self, values: np.ndarray):
+        # Normalize scalar and per-dimension bounds into a shape that NumPy can
+        # broadcast across 1D or 2D inputs without per-element Python loops.
+        if np.ndim(self.minima) == 0:
+            return float(self.minima), float(self.maxima)
+
+        if values.shape[-1] != len(self.minima):
+            raise ValueError(
+                "Input feature length does not match quantization bounds length"
+            )
+        return self.minima, self.maxima
+
     def quantize(self, a: np.ndarray, m: int):
         a = self._as_numpy(a)
         if a.ndim > 2:
             raise ValueError(f'The array as more than two dimensions: {a.shape}.')
-        elif a.ndim == 1:
-            b = [self._quantize(x, min, max, m) for x, min, max in self._iter_bounds(a)]
-            return np.array(b, dtype=int)
-        else:
-            b = [self.quantize(e, m) for e in a]
-            return np.array(b)
+        if a.ndim == 0:
+            raise ValueError("Corpus must have at least one dimension")
+
+        minima, maxima = self._get_bounds(a)
+        midpoint = int(round((m - 1) / 2))
+        same_bounds = maxima == minima
+
+        # Vectorize the full quantization formula so batches avoid the original
+        # row-by-row recursion and element-by-element list comprehensions.
+        quantized = np.rint((m - 1) * (a - minima) / (maxima - minima))
+        quantized = np.where(same_bounds, midpoint, quantized)
+        quantized = np.where(~same_bounds & np.isnan(a), maxima + 1, quantized)
+        return quantized.astype(int, copy=False)
 
     def dequantize(self, a: np.array, m: int):
         a = self._as_numpy(a)
         if a.ndim > 2:
             raise ValueError(f'The array as more than two dimensions: {a.shape}.')
-        elif a.ndim == 1:
-            b = [
-                self._dequantize(x, min, max, m) for x, min, max in self._iter_bounds(a)
-            ]
-            return np.array(b, dtype=float)
-        else:
-            b = [self.dequantize(e, m) for e in a]
-            return np.array(b)
+        if a.ndim == 0:
+            raise ValueError("Corpus must have at least one dimension")
+
+        minima, maxima = self._get_bounds(a)
+        if m == 1:
+            return np.full_like(a, (maxima - minima) / 2, dtype=float)
+        # Mirror quantize() with a fully vectorized inverse transform.
+        return ((maxima - minima) * a / (m - 1) + minima).astype(float, copy=False)
 
     def _quantize(self, x, min, max, m):
         if max == min:
