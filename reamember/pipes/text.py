@@ -117,7 +117,7 @@ def apply_text_noise(text, noise_level=0.1, character_mask=None):
     return ''.join(masked_text)
 
 
-def test_recall(cfg, device, experiments_root, use_noise=False):
+def test_recognition(cfg, device, experiments_root, use_noise=False):
 
     latent = cfg.neural.latent_dim[0] if isinstance(cfg.neural.latent_dim, ListConfig) else int(cfg.neural.latent_dim)
 
@@ -163,6 +163,7 @@ def test_recall(cfg, device, experiments_root, use_noise=False):
     # First Experiment: Test Recognition Rates
 
     recognition_text_path = ensure_directory(path / recognition_dirname)
+    raw_path = ensure_directory(recognition_text_path / "raw")
 
     domains = (
         [int(domain) for domain in cfg.memory.domain]
@@ -191,13 +192,14 @@ def test_recall(cfg, device, experiments_root, use_noise=False):
     )
 
     print(
-        f"[INFO] Testing recall with latent={latent}, domains={domains}, sigmas={sigmas}, "
+        f"[INFO] Testing recognition with latent={latent}, domains={domains}, sigmas={sigmas}, "
         f"xis={xis}, iotas={iotas}, kappas={kappas}, use_noise={use_noise}"
     )
 
     confusion_summaries = [] # Prepare to collect confusion summaries for all domains
+    noise_level = cfg.app.noise if use_noise else 0
     confusion_summary_path = (
-        recognition_text_path / f"recognition_confusion_summary_{use_noise}.json"
+        recognition_text_path / f"recognition_confusion_summary_{noise_level}.json"
     )
 
     from rich.progress import (
@@ -291,7 +293,7 @@ def test_recall(cfg, device, experiments_root, use_noise=False):
                             }
 
                             confusion_path = (
-                                recognition_text_path / f"recognition_confusion_domain_{domain}_sigma_{sigma}_xi_{xi}_iota_{iota}_kappa_{kappa}.json"
+                                raw_path / f"recognition_confusion_domain_{domain}_sigma_{sigma}_xi_{xi}_iota_{iota}_kappa_{kappa}.json"
                             )
 
                             with open(confusion_path, "w", encoding="utf-8") as f_out:
@@ -302,36 +304,36 @@ def test_recall(cfg, device, experiments_root, use_noise=False):
                                     ensure_ascii=False,
                                 )
 
-                            fig = go.Figure(
-                                data=go.Heatmap(
-                                    z=confusion["matrix"],
-                                    x=confusion["labels"]["columns"],
-                                    y=confusion["labels"]["rows"],
-                                    colorscale="Viridis",
-                                    colorbar=dict(title="Count"),
-                                    text=confusion["matrix"],
-                                    texttemplate="%{text}",
-                                )
-                            )
-                            fig.update_layout(
-                                title=f"Text Memory Recognition Confusion Matrix (m={domain}) with σ={sigma}, iota={iota}, kappa={kappa}, xi={xi}",
-                                xaxis_title="Memory Decision",
-                                yaxis_title="Sample Type",
-                                width=1200,
-                                height=800,
-                            )
-                            fig.write_html(
-                                recognition_text_path
-                                / f"recognition_confusion_domain_{domain}_sigma_{sigma}_xi_{xi}_iota_{iota}_kappa_{kappa}.html"
-                            )
-                            fig.write_image(
-                                recognition_text_path
-                                / f"recognition_confusion_domain_{domain}_sigma_{sigma}_xi_{xi}_iota_{iota}_kappa_{kappa}.svg"
-                            )
-                            fig.write_image(
-                                recognition_text_path
-                                / f"recognition_confusion_domain_{domain}_sigma_{sigma}_xi_{xi}_iota_{iota}_kappa_{kappa}.png"
-                            )
+                            # fig = go.Figure(
+                            #     data=go.Heatmap(
+                            #         z=confusion["matrix"],
+                            #         x=confusion["labels"]["columns"],
+                            #         y=confusion["labels"]["rows"],
+                            #         colorscale="Viridis",
+                            #         colorbar=dict(title="Count"),
+                            #         text=confusion["matrix"],
+                            #         texttemplate="%{text}",
+                            #     )
+                            # )
+                            # fig.update_layout(
+                            #     title=f"Text Memory Recognition Confusion Matrix (m={domain}) with σ={sigma}, iota={iota}, kappa={kappa}, xi={xi}",
+                            #     xaxis_title="Memory Decision",
+                            #     yaxis_title="Sample Type",
+                            #     width=1200,
+                            #     height=800,
+                            # )
+                            # fig.write_html(
+                            #     recognition_text_path
+                            #     / f"recognition_confusion_domain_{domain}_sigma_{sigma}_xi_{xi}_iota_{iota}_kappa_{kappa}.html"
+                            # )
+                            # fig.write_image(
+                            #     recognition_text_path
+                            #     / f"recognition_confusion_domain_{domain}_sigma_{sigma}_xi_{xi}_iota_{iota}_kappa_{kappa}.svg"
+                            # )
+                            # fig.write_image(
+                            #     recognition_text_path
+                            #     / f"recognition_confusion_domain_{domain}_sigma_{sigma}_xi_{xi}_iota_{iota}_kappa_{kappa}.png"
+                            # )
                             click.echo(
                                 f"[INFO] Recognition rates (m={domain}) | seen recognized: {confusion['rates']['seen_recognized_rate']:.4f} "
                                 f"| unseen recognized: {confusion['rates']['unseen_recognized_rate']:.4f} "

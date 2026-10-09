@@ -322,16 +322,16 @@ def test_classifier_command(config):
 @click.option(
     "--noise",
     is_flag=True,
-    help="Use noised test embeddings if available for text recall evaluation.",
+    help="Use noised test embeddings if available for text recognition evaluation.",
 )
-def test_recall(config, noise):
-    "🔍 Test recall with distinct params"
+def test_recognition(config, noise):
+    "🔍 Test recognition with distinct params"
     cfg = load_cli_config(config)
     config_summary(cfg)
 
     if cfg.app.modality == "text":
-        from reamember.pipes.text import test_recall
-        test_recall(
+        from reamember.pipes.text import test_recognition
+        test_recognition(
             cfg,
             device=device,
             experiments_root=EXPERIMENTS_ROOT,
@@ -339,7 +339,7 @@ def test_recall(config, noise):
         )
         return
     else:
-        raise NotImplementedError("Recall testing is only implemented for text modality.")
+        raise NotImplementedError("Recognition testing is only implemented for text modality.")
 
 @cli.command()
 @click.option("--config", help="YAML configuration.")

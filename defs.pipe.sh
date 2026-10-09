@@ -1,0 +1,40 @@
+#!/bin/bash
+
+CONFIG="./config/dictionary-def.yml"
+TIMES_FILE="${CONFIG/.yml/.times.txt}"
+BSTCONFIG="${CONFIG/.yml/.best.yml}"
+BSTNCONFIG="${CONFIG/.yml/.best.noise.yml}"
+
+set -e
+
+echo "" > $TIMES_FILE
+
+function timeit() {
+    CMD="$1"
+    LABEL="$2"
+    START=$(date +%s)
+    eval "$CMD"
+    END=$(date +%s)
+    ELAPSED=$((END - START))
+
+    DAYS=$((ELAPSED / 86400))
+    HOURS=$(((ELAPSED % 86400) / 3600))
+    MINUTES=$(((ELAPSED % 3600) / 60))
+    SECONDS=$((ELAPSED % 60))
+
+    printf "%s: %dd %02dh %02dm %02ds\n" "$LABEL" "$DAYS" "$HOURS" "$MINUTES" "$SECONDS" >> "$TIMES_FILE"
+}
+
+timeit "uv run manage.py get-embeddings --config $CONFIG" "get-embeddings"
+timeit "uv run manage.py encoder test --config $CONFIG --n 100" "encoder test"
+# Experimento 1
+timeit "uv run manage.py test-recognition --config $CONFIG" "test-recognition"
+timeit "uv run manage.py test-recognition --config $CONFIG --noise" "test-recognition noise"
+# Experimento 2
+timeit "uv run manage.py get-bestparams --config $CONFIG" "get-bestparams"
+timeit "uv run manage.py get-bestparams --config $CONFIG --noise" "get-bestparams noise"
+# Ejemplos
+timeit "uv run manage.py create-memories --config $BSTCONFIG --n 1000" "create-memories"
+timeit "uv run manage.py create-memories --config $BSTNCONFIG --noise --n 100" "create-memories noise"
+# Interactivo
+# uv run manage.py interactive --config $BSTCONFIG
