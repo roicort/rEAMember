@@ -304,52 +304,55 @@ def evalm_text(eam, dataset, quantizer, batch_size=None):
 
 def evalm_text_confusion(
     eam,
-    seen_dataset,
-    unseen_dataset,
+    registered_dataset,
+    comparison_dataset,
     quantizer,
     test_dataset=None,
     batch_size=None,
+    comparison_label="unregistered",
 ):
     """
     Build a binary confusion matrix for text memory recognition.
-    Rows: seen, unseen, optional test.
+    Rows: registered, comparison_label (unregistered or registered_noised), optional test.
     Columns: recognized, unrecognized.
     """
 
-    # Eam is filled with only the seen_dataset (first half of the training dataset)
-
-    # Evaluate on both seen and unseen datasets
-    _, seen_recognitions, seen_weights, seen_recognized, seen_unrecognized = evalm_text(
-        eam, seen_dataset, quantizer, batch_size=batch_size
+    # EAM is filled with only the registered dataset.
+    # Evaluate registered and unregistered or registered-noised datasets.
+    _, registered_recognitions, _, registered_recognized, registered_unrecognized = evalm_text(
+        eam, registered_dataset, quantizer, batch_size=batch_size
     )
-    # Evaluate on the unseen dataset
-    _, unseen_recognitions, unseen_weights, unseen_recognized, unseen_unrecognized = evalm_text(
-        eam, unseen_dataset, quantizer, batch_size=batch_size
+    # Evaluate the unregistered or registered-noised dataset.
+    _, comparison_recognitions, _, comparison_recognized, comparison_unrecognized = evalm_text(
+        eam, comparison_dataset, quantizer, batch_size=batch_size
     )
 
-    row_labels = ["seen", "unseen"]
+    row_labels = ["registered", comparison_label]
     matrix_rows = []
     counts = {}
     rates = {
-        "seen_recognized_rate": float(seen_recognized),
-        "seen_unrecognized_rate": float(seen_unrecognized),
-        "unseen_recognized_rate": float(unseen_recognized),
-        "unseen_unrecognized_rate": float(unseen_unrecognized),
+        "registered_recognized_rate": float(registered_recognized),
+        "registered_unrecognized_rate": float(registered_unrecognized),
+        f"{comparison_label}_recognized_rate": float(comparison_recognized),
+        f"{comparison_label}_unrecognized_rate": float(comparison_unrecognized),
     }
 
-    seen_total = len(seen_recognitions)
-    unseen_total = len(unseen_recognitions)
+    registered_total = len(registered_recognitions)
+    comparison_total = len(comparison_recognitions)
     matrix_rows.append(
-        [int(np.sum(seen_recognitions)), int(seen_total - np.sum(seen_recognitions))]
+        [
+            int(np.sum(registered_recognitions)),
+            int(registered_total - np.sum(registered_recognitions)),
+        ]
     )
     matrix_rows.append(
         [
-            int(np.sum(unseen_recognitions)),
-            int(unseen_total - np.sum(unseen_recognitions)),
+            int(np.sum(comparison_recognitions)),
+            int(comparison_total - np.sum(comparison_recognitions)),
         ]
     )
-    counts["seen_total"] = int(seen_total)
-    counts["unseen_total"] = int(unseen_total)
+    counts["registered_total"] = int(registered_total)
+    counts[f"{comparison_label}_total"] = int(comparison_total)
 
     if test_dataset is not None:
         _, test_recognitions, _, test_recognized, test_unrecognized = evalm_text(

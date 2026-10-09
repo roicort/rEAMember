@@ -138,24 +138,27 @@ def test_recognition(cfg, device, experiments_root, use_noise=False):
         memory_wrapper = EmbeddingDatasetWrapper(
             train=embeddings_dataset.train.data,
             test=embeddings_dataset_noise.train.data,
-        ) # Fill memory with clean train and evaluate on noised train for seen/unseen evaluation, using noised test for final test evaluation
-        
-        seen_source = "clean_train"
-        unseen_source = "noised_train"
+        )
+        # Fill memory with clean train and evaluate noised train and test data.
+        registered_source = "clean_train"
+        comparison_label = "registered_noised"
+        comparison_source = "noised_train"
         test_source = "noised_test"
 
     else:
         test_embeddings_dataset = embeddings_dataset
         quant_source = torch.cat([embeddings_dataset.train.data, embeddings_dataset.test.data], dim=0)
         train_embeddings = embeddings_dataset.train.data
-        split_index = max(1, len(train_embeddings) // 2) # Split train into two halves for seen/unseen evaluation, ensuring at least one sample in the seen half
+        # Split train into registered and unregistered halves.
+        split_index = max(1, len(train_embeddings) // 2)
         memory_wrapper = EmbeddingDatasetWrapper(
             train=train_embeddings[:split_index],
             test=train_embeddings[split_index:],
-        ) # Fill memory with first half of train and evaluate on second half of train for seen/unseen evaluation, using test for final test evaluation
-        
-        seen_source = "first_half_of_train"
-        unseen_source = "second_half_of_train"
+        )
+        # Fill memory with the first half and evaluate the second half and test data.
+        registered_source = "first_half_of_train"
+        comparison_label = "unregistered"
+        comparison_source = "second_half_of_train"
         test_source = "test"
 
     quantizer = Quant( quant_source ) # Create quantizer with train + test
@@ -257,7 +260,7 @@ def test_recognition(cfg, device, experiments_root, use_noise=False):
                                 kappa=kappa,
                             )
 
-                            # Memorize using the specified memory parameters, quantizer built from train + test and the appropriate train split for seen/unseen evaluation
+                            # Memorize using the specified parameters and train split.
                             eam = memorize(
                                 eam,
                                 dataset=memory_wrapper.train,
@@ -265,14 +268,15 @@ def test_recognition(cfg, device, experiments_root, use_noise=False):
                                 batch_size=batch_size,
                             )
 
-                            # Evaluate recognition on the seen and unseen halves
+                            # Evaluate recognition on registered and unregistered or registered-noised samples.
                             confusion = evalm_text_confusion(
                                 eam,
-                                seen_dataset=memory_wrapper.train,
-                                unseen_dataset=memory_wrapper.test,
+                                registered_dataset=memory_wrapper.train,
+                                comparison_dataset=memory_wrapper.test,
                                 test_dataset=test_embeddings_dataset.test,
                                 quantizer=quantizer,
                                 batch_size=batch_size,
+                                comparison_label=comparison_label,
                             )
 
                             confusion_payload = {
@@ -283,8 +287,8 @@ def test_recognition(cfg, device, experiments_root, use_noise=False):
                                 "iota": iota,
                                 "kappa": kappa,
                                 "xi": xi,
-                                "seen_source": seen_source,
-                                "unseen_source": unseen_source,
+                                "registered_source": registered_source,
+                                f"{comparison_label}_source": comparison_source,
                                 "test_source": test_source,
                                 "labels": confusion["labels"],
                                 "matrix": confusion["matrix"].tolist(),
@@ -335,8 +339,8 @@ def test_recognition(cfg, device, experiments_root, use_noise=False):
                             #     / f"recognition_confusion_domain_{domain}_sigma_{sigma}_xi_{xi}_iota_{iota}_kappa_{kappa}.png"
                             # )
                             click.echo(
-                                f"[INFO] Recognition rates (m={domain}) | seen recognized: {confusion['rates']['seen_recognized_rate']:.4f} "
-                                f"| unseen recognized: {confusion['rates']['unseen_recognized_rate']:.4f} "
+                                f"[INFO] Recognition rates (m={domain}) | registered recognized: {confusion['rates']['registered_recognized_rate']:.4f} "
+                                f"| {comparison_label} recognized: {confusion['rates'][f'{comparison_label}_recognized_rate']:.4f} "
                                 f"| test recognized: {confusion['rates']['test_recognized_rate']:.4f}"
                             )
                             confusion_summaries.append(confusion_payload)
@@ -818,10 +822,10 @@ def get_besttext_params(cfg, config, device, EXPERIMENTS_ROOT, use_noise=False):
     )
 
     from rich.progress import (
+        MofNCompleteColumn,
         Progress,
         SpinnerColumn,
         TimeElapsedColumn,
-        MofNCompleteColumn,
     )
 
     progress = Progress(
