@@ -473,7 +473,6 @@ def test_text_encoder(cfg, n_examples, device, experiments_root):
         "summaries": {
             "clean": clean_summary,
         },
-        "samples": saved_aligned_samples,
     }
     if noise_summary is not None:
         aligned_metrics["summaries"]["noise"] = noise_summary
@@ -516,6 +515,7 @@ def get_text_embeddings(cfg, device, experiments_root):
         modality=cfg.app.modality,
         device=device,
         save_path=file_embeddings_path,
+        num_workers=0,
     )
 
     if cfg.app.noise is not None and cfg.app.noise > 0:
@@ -546,6 +546,7 @@ def get_text_embeddings(cfg, device, experiments_root):
             modality=cfg.app.modality,
             device=device,
             save_path=file_embeddings_path,
+            num_workers=0,
         )
 
 def create_text_memories(cfg, n_saved, device, use_noise=False, experiments_root=None):
