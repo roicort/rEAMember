@@ -1166,9 +1166,11 @@ def interactive_memory(cfg, device, experiments_root):
 
         return (
             eam_instance,
-            "Parametros actualizados en la instancia actual: "
-            f"xi={eam_instance.xi}, sigma={eam_instance.sigma:.4f}, "
-            f"iota={eam_instance.iota:.4f}, kappa={eam_instance.kappa:.4f}.",
+            (
+                "Parametros actualizados en la instancia actual: "
+                f"xi={eam_instance.xi}, sigma={eam_instance.sigma:.4f}, "
+                f"iota={eam_instance.iota:.4f}, kappa={eam_instance.kappa:.4f}."
+            ),
         )
 
     def apply_noise_to_cue(cue):
@@ -1180,7 +1182,9 @@ def interactive_memory(cfg, device, experiments_root):
             cue, noise_level=get_scalar_config_value(cfg.app.noise or 0.5)
         )
 
-    def interactive_recall(cue, eam_instance, progress=gr.Progress()):
+    interactive_recall_progress = gr.Progress()
+
+    def interactive_recall(cue, eam_instance, progress=interactive_recall_progress):
         cue = str(cue).strip()
         if not cue:
             return "", "Escribe un texto para consultar la memoria."

@@ -13,6 +13,8 @@ sys.path.append(path)
 from PIL import Image as PILImage
 from SPOTS.utils import SPOT10Loader
 
+DEFAULT_IMAGE_TRANSFORM = transforms.ToTensor()
+
 # Custom Dataset
 
 
@@ -21,7 +23,7 @@ class CustomImageDataset(Dataset):
         self,
         data,
         targets,
-        transform=transforms.ToTensor(),
+        transform=DEFAULT_IMAGE_TRANSFORM,
         target_transform=torch.as_tensor,
     ):
         self.data = data
@@ -95,11 +97,11 @@ class HFImageDataset(CustomImageDataset):
                     t = self.label_map[t]
                 try:
                     labels_list.append(int(t))
-                except Exception:
+                except (TypeError, ValueError, OverflowError):
                     labels_list.append(t)
             try:
                 labels = torch.as_tensor(labels_list)
-            except Exception:
+            except (TypeError, ValueError, RuntimeError):
                 labels = labels_list
 
         data_proxy = HFDataProxy(self.hf_ds)
@@ -181,7 +183,7 @@ class ImageDatasetWrapper:
             if label_col:
                 sample_label = ds["train"][label_col][0]
                 if isinstance(sample_label, str):
-                    unique = sorted(list(set(ds["train"][label_col])))
+                    unique = sorted(set(ds["train"][label_col]))
                     label_map = {c: i for i, c in enumerate(unique)}
 
             # Create PyTorch datasets that apply transforms on the fly (no full memory copy)
@@ -206,7 +208,7 @@ class ImageDatasetWrapper:
                     self.n_classes = len(set(ds["train"][label_col]))
                 else:
                     self.n_classes = None
-            except Exception:
+            except (KeyError, TypeError):
                 self.n_classes = None
 
         else:

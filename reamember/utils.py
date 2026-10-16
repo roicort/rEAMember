@@ -317,7 +317,7 @@ class Quant:
             raise ValueError("Corpus must have at least one dimension")
 
         minima, maxima = self._get_bounds(a)
-        midpoint = int(round((m - 1) / 2))
+        midpoint = round((m - 1) / 2)
         same_bounds = maxima == minima
 
         # Vectorize the full quantization formula so batches avoid the original

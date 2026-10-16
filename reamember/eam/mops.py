@@ -169,7 +169,7 @@ def evalm(eam, classifier, dataset, quantizer, batch_size=None):
         answers = []
 
         for feature in tqdm(features_rounded):
-            memory, recognized, weight = eam.recall(feature)
+            memory, recognized, _weight = eam.recall(feature)
             if recognized:
                 memory = memory.cpu().numpy() if torch.is_tensor(memory) else memory
                 memory = quantizer.dequantize(memory, eam.m)

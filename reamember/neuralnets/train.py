@@ -9,6 +9,10 @@ from reamember.neuralnets.autoencoder import Autoencoder
 from reamember.neuralnets.classifier import Classifier
 
 
+class TransformerTrainingNotImplementedError(NotImplementedError):
+    """Raised when transformer training is requested."""
+
+
 class ImageReconstructionCallback(pl.Callback):
     def __init__(self, val_loader, logger, every_n_epochs=5, max_images=8):
         super().__init__()
@@ -66,7 +70,7 @@ def train_autoencoder(config, dim, input_shape, dataset, name, save_path):
 
 
 def train_transformer(config, dataset, name, save_path):
-    raise Exception("Not implemented")
+    raise TransformerTrainingNotImplementedError
 
 
 def train_classifier(config, dim, dataset, name, save_path):

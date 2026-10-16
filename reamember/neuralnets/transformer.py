@@ -18,7 +18,7 @@ class SONAR(pl.LightningModule):
         decoder="text_sonar_basic_decoder",
         tokenizer="text_sonar_basic_encoder",
         max_seq_len=128,
-        device="cuda" if torch.cuda.is_available() else "cpu",
+        device=None,
         encode_device=None,
         decode_device=None,
     ):
@@ -30,6 +30,8 @@ class SONAR(pl.LightningModule):
         self.decoder_name = decoder
         self.tokenizer_name = tokenizer
         self.max_seq_len = max_seq_len
+        if device is None:
+            device = "cuda" if torch.cuda.is_available() else "cpu"
         base_device = torch.device(device)
         self.encode_device = torch.device(encode_device or base_device)
         self.decode_device = torch.device(decode_device or base_device)

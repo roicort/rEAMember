@@ -91,7 +91,7 @@ def _numeric_values(value: Any, field_name: str) -> list[float]:
     numeric_values = []
     for item in values:
         if not isinstance(item, Real):
-            raise ValueError(f"{field_name} values must be numeric")
+            raise TypeError(f"{field_name} values must be numeric")
         numeric_values.append(float(item))
 
     return numeric_values
@@ -194,6 +194,6 @@ def setDeviceConfig():
         torch.ones(1, device=device)
     except Exception as e:
         print("Error:", e)
-        raise e
+        raise
 
     return device

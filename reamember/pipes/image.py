@@ -293,7 +293,7 @@ def create_image_memories(cfg, n_saved, device, experiments_root):
         batch_size=cfg.memory.batch_size,
     )
 
-    memories_features, memories_recognition, _ = remember(
+    memories_features, _memories_recognition, _ = remember(
         cfg,
         eam=eam,
         dataset=embeddings_dataset.test,
@@ -350,7 +350,7 @@ def create_image_memories(cfg, n_saved, device, experiments_root):
             x=list(range(embeddings_dataset.n_classes)),
             y=list(range(embeddings_dataset.n_classes)),
             colorscale="Viridis",
-            colorbar=dict(title="Count"),
+            colorbar={"title": "Count"},
         )
     )
     fig.update_layout(
@@ -415,7 +415,7 @@ def run_image_dream(cfg, num_cycles, init_type, idx, device, experiments_root):
     dreams_path = ensure_directory(path / "dreams")
 
     for index in range(num_cycles):
-        recalled, accepted, weight = memory.recall(vector)
+        recalled, _accepted, _weight = memory.recall(vector)
         decoded = decoder.decode(
             torch.tensor(recalled, dtype=torch.float32, device=device).unsqueeze(0)
         )

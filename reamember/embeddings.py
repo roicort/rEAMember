@@ -140,7 +140,7 @@ def get_embeddings(
                         labels = labels.cpu().tolist()
                     try:
                         return [str(int(val)) for val in labels]
-                    except Exception:
+                    except (TypeError, ValueError, OverflowError):
                         return [str(val) for val in labels]
 
                 labels_train = _labels_to_list_str(embedding_dataset.train.targets)
@@ -155,7 +155,7 @@ def get_embeddings(
                 writer.close()
 
                 print(f"[INFO] Embeddings registrados en TensorBoard: {tb_dir}")
-            except Exception as e:
+            except (OSError, RuntimeError, TypeError, ValueError) as e:
                 print(f"[WARN] No se pudieron registrar embeddings en TensorBoard: {e}")
 
     else:

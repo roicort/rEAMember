@@ -292,7 +292,7 @@ def test_classifier_command(config):
                     x=list(range(embeddings_dataset.n_classes)),
                     y=list(range(embeddings_dataset.n_classes)),
                     colorscale="Viridis",
-                    colorbar=dict(title="Count"),
+                    colorbar={"title": "Count"},
                 )
             )
             fig.update_layout(

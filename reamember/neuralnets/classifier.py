@@ -10,12 +10,14 @@ class Classifier(pl.LightningModule):
         self,
         latent_dim: int,
         n_classes: int,
-        hidden_dims=[512, 256, 128, 128, 128],
+        hidden_dims=None,
         dropout: float = 0.3,
         lr: float = 1e-3,
         weight_decay: float = 1e-4,
         scheduler_gamma: float = 0.95,
     ):
+        if hidden_dims is None:
+            hidden_dims = [512, 256, 128, 128, 128]
         super().__init__()
         self.lr = lr
         self.dropout = dropout
