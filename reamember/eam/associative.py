@@ -16,13 +16,16 @@
 # File originally create by Raul Peralta-Lozada.
 
 import math
+
 import numpy as np
+
 
 def normpdf(x, mean, sd, scale=1.0):
     var = float(sd) ** 2
     denom = (2 * math.pi * var) ** 0.5
     num = math.exp(-((float(x) - float(mean)) ** 2) / (2 * var))
     return scale * num / denom
+
 
 class NumpyAssociativeMemory:
     def __init__(
@@ -71,15 +74,13 @@ class NumpyAssociativeMemory:
         self._updated = True if relation is None else self.update()
         if verbose:
             print(
-                f'Memory {{n: {self.n}, m: {self.m}, '
-                + f'xi: {self.xi}, iota: {self.iota}, '
-                + f'kappa: {self.kappa}, sigma: {self.sigma}}}, has been created'
+                f"Memory {{n: {self.n}, m: {self.m}, "
+                + f"xi: {self.xi}, iota: {self.iota}, "
+                + f"kappa: {self.kappa}, sigma: {self.sigma}}}, has been created"
             )
 
     @classmethod
-    def from_relation(
-        cls, relation: np.array, verbose=False
-    ):
+    def from_relation(cls, relation: np.array, verbose=False):
         n, m = relation.shape
         return cls(n, m, relation=relation, verbose=verbose)
 
@@ -151,7 +152,7 @@ class NumpyAssociativeMemory:
     @sigma.setter
     def sigma(self, s):
         if s < 0:
-            raise ValueError('Sigma must be a non negative number.')
+            raise ValueError("Sigma must be a non negative number.")
         self._sigma = s
         self._sigma_scaled = abs(s * self.m)
         self._scale = normpdf(0, 0, self._sigma_scaled)
@@ -176,7 +177,7 @@ class NumpyAssociativeMemory:
     @kappa.setter
     def kappa(self, k):
         if k < 0:
-            raise ValueError('Kappa must be a non negative number.')
+            raise ValueError("Kappa must be a non negative number.")
         self._kappa = k
 
     @property
@@ -186,7 +187,7 @@ class NumpyAssociativeMemory:
     @iota.setter
     def iota(self, i):
         if i < 0:
-            raise ValueError('Iota must be a non negative number.')
+            raise ValueError("Iota must be a non negative number.")
         self._iota = i
         self._updated = False
 
@@ -197,7 +198,7 @@ class NumpyAssociativeMemory:
     @xi.setter
     def xi(self, x):
         if (x < 0) or (x > self.n):
-            raise ValueError('Xi must be a non negative number.')
+            raise ValueError("Xi must be a non negative number.")
         self._xi = x
         self._updated = False
 
@@ -373,18 +374,18 @@ class NumpyAssociativeMemory:
         cue = np.asanyarray(cue)
         if cue.shape[-1] != self.n:
             raise ValueError(
-                'Invalid size of the input data. '
-                + f'Expected {self.n} and given {cue.size}'
+                "Invalid size of the input data. "
+                + f"Expected {self.n} and given {cue.size}"
             )
         v = np.clip(cue, 0, self.m - 1)
         v = np.nan_to_num(v, copy=True, nan=self.undefined)
-        return v.astype('int')
+        return v.astype("int")
 
     def batch_validate(self, cues):
         if cues.shape[-1] != self.n:
             raise ValueError(
-                'Invalid size of the input data. '
-                + f'Expected {self.n} and given {cues.shape[-1]}'
+                "Invalid size of the input data. "
+                + f"Expected {self.n} and given {cues.shape[-1]}"
             )
         # Runs the validation for the whole batch
         # (Updated to handle 2D inputs)
@@ -393,7 +394,7 @@ class NumpyAssociativeMemory:
         return cues
 
     def revalidate(self, vector):
-        v = vector.astype('float')
+        v = vector.astype("float")
         return np.where(v == float(self.undefined), np.nan, v)
 
     def _weight(self, vector):

@@ -1,11 +1,13 @@
-import torch
-from torch.utils.data import DataLoader
 import pytorch_lightning as pl
+import torch
+import torchvision.utils as vutils
 from pytorch_lightning.callbacks import EarlyStopping
 from pytorch_lightning.loggers import TensorBoardLogger
+from torch.utils.data import DataLoader
+
 from reamember.neuralnets.autoencoder import Autoencoder
 from reamember.neuralnets.classifier import Classifier
-import torchvision.utils as vutils
+
 
 class ImageReconstructionCallback(pl.Callback):
     def __init__(self, val_loader, logger, every_n_epochs=5, max_images=8):
@@ -28,8 +30,9 @@ class ImageReconstructionCallback(pl.Callback):
             n = min(self.max_images, x.size(0))
             comparison = torch.cat([x[:n], x_hat[:n]])
             grid = vutils.make_grid(comparison, nrow=n, normalize=True, scale_each=True)
-            trainer.logger.experiment.add_image('Reconstructions', grid, epoch)
+            trainer.logger.experiment.add_image("Reconstructions", grid, epoch)
         pl_module.train()
+
 
 def train_autoencoder(config, dim, input_shape, dataset, name, save_path):
     train_loader = DataLoader(
@@ -37,24 +40,34 @@ def train_autoencoder(config, dim, input_shape, dataset, name, save_path):
         batch_size=config.batch_size,
         num_workers=4,
         shuffle=True,
-        persistent_workers=True
+        persistent_workers=True,
     )
     test_loader = DataLoader(
         dataset.test,
         batch_size=config.batch_size,
         num_workers=4,
-        persistent_workers=True
+        persistent_workers=True,
     )
     model = Autoencoder(input_shape=input_shape, latent_dim=dim)
-    early_stop = EarlyStopping(monitor='val_loss', patience=config.patience, min_delta=config.delta, mode='min', verbose=True)
+    early_stop = EarlyStopping(
+        monitor="val_loss",
+        patience=config.patience,
+        min_delta=config.delta,
+        mode="min",
+        verbose=True,
+    )
     logger = TensorBoardLogger("logs", name=f"{name}_autoencoder")
     recon_cb = ImageReconstructionCallback(test_loader, logger)
-    trainer = pl.Trainer(max_epochs=config.epochs, callbacks=[early_stop, recon_cb], logger=logger)
+    trainer = pl.Trainer(
+        max_epochs=config.epochs, callbacks=[early_stop, recon_cb], logger=logger
+    )
     trainer.fit(model, train_loader, test_loader)
     torch.save(model.state_dict(), save_path)
 
+
 def train_transformer(config, dataset, name, save_path):
     raise Exception("Not implemented")
+
 
 def train_classifier(config, dim, dataset, name, save_path):
     train_loader = DataLoader(
@@ -62,17 +75,25 @@ def train_classifier(config, dim, dataset, name, save_path):
         batch_size=config.batch_size,
         num_workers=0,
         shuffle=True,
-        persistent_workers=False 
+        persistent_workers=False,
     )
     test_loader = DataLoader(
         dataset.test,
         batch_size=config.batch_size,
         num_workers=0,
-        persistent_workers=False
+        persistent_workers=False,
     )
     model = Classifier(latent_dim=dim, n_classes=dataset.n_classes)
-    early_stop = EarlyStopping(monitor='val_loss', patience=config.patience, min_delta=config.delta, mode='min', verbose=True)
+    early_stop = EarlyStopping(
+        monitor="val_loss",
+        patience=config.patience,
+        min_delta=config.delta,
+        mode="min",
+        verbose=True,
+    )
     logger = TensorBoardLogger("logs", name=f"{name}_classifier")
-    trainer = pl.Trainer(max_epochs=config.epochs, callbacks=[early_stop], logger=logger)
+    trainer = pl.Trainer(
+        max_epochs=config.epochs, callbacks=[early_stop], logger=logger
+    )
     trainer.fit(model, train_loader, test_loader)
     torch.save(model.state_dict(), save_path)

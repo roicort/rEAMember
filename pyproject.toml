@@ -31,4 +31,5 @@ dependencies = [
     "transformers>=4.57.6",
     "fastdtw>=0.3.4",
     "sentence-splitter>=1.4",
+    "ruff>=0.17.1",
 ]

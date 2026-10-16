@@ -1,9 +1,10 @@
 # Dataset y DataLoader para rEAMember
 import torch
-from torch.utils.data import Dataset
 from datasets import load_dataset as load_dataset_hf
+from torch.utils.data import Dataset
 
 # Custom Dataset
+
 
 class CustomTextDataset(Dataset):
     def __init__(
@@ -23,10 +24,11 @@ class CustomTextDataset(Dataset):
 
     def __getitem__(self, idx):
         text = self.texts[idx]
-        
+
         if self.transform:
             text = self.transform(text)
         return text
+
 
 def _identity(x):
     return x
@@ -38,7 +40,13 @@ def _clean_text(text):
 
 def _clean_definition(definition):
     definition = _clean_text(definition)
-    if "." not in definition or "alt." in definition or "p." in definition or "imp." in definition or "pl." in definition:
+    if (
+        "." not in definition
+        or "alt." in definition
+        or "p." in definition
+        or "imp." in definition
+        or "pl." in definition
+    ):
         return definition
     parts = [part.strip() for part in definition.split(".") if part.strip()]
     if not parts:
@@ -46,8 +54,9 @@ def _clean_definition(definition):
     # Return first part if it's significantly shorter than the longest part, otherwise return the longest part
     if len(parts[0]) < 0.5 * max(len(part) for part in parts):
         return parts[0]
-    else: 
+    else:
         return max(parts, key=len)
+
 
 class TextDatasetWrapper:
     def __init__(
@@ -78,7 +87,5 @@ class TextDatasetWrapper:
         train_texts = ds["train"][column]
         test_texts = ds["test"][column]
 
-        self.train = CustomTextDataset(
-            train_texts, None, transform=transform
-        )
+        self.train = CustomTextDataset(train_texts, None, transform=transform)
         self.test = CustomTextDataset(test_texts, None, transform=transform)

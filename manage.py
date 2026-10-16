@@ -15,26 +15,22 @@ from pathlib import Path
 import numpy as np
 import rich_click as click
 import torch
-
 from plotly import graph_objects as go
 
 # --------------------------------------------------------------
 # Rich
-
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
 from tqdm import tqdm
 
 from reamember.config import loadValConfig, setDeviceConfig, setGlobalSeed
-
-
 from reamember.utils import (
-    rich_conf,
     config_summary,
     ensure_directory,
     fail_if_text_modality,
     get_experiment_path,
     load_embeddings_dataset,
     load_model_state,
+    rich_conf,
     task_status,
 )
 
@@ -57,9 +53,8 @@ def load_cli_config(config):
         setGlobalSeed(int(cfg.app.seed))
         return cfg
     except Exception as exc:
-        raise click.ClickException(
-            f"Invalid configuration '{config}': {exc}"
-        ) from exc
+        raise click.ClickException(f"Invalid configuration '{config}': {exc}") from exc
+
 
 ############################################################################################
 # CLI Commands
@@ -71,19 +66,17 @@ def load_cli_config(config):
 @click.rich_config(help_config=rich_conf)
 def cli():
     click.echo(f"[INFO] Using device: {device}")
-    pass
 
 
 @click.group()
 def encoder():
     """Encoder related commands."""
-    pass
 
 
 @click.group()
 def classifier():
     """Classifier related commands."""
-    pass
+
 
 # --------------------------------------------------------------
 # Encoder Commands
@@ -98,8 +91,8 @@ def train_encoder(config):
 
     if cfg.app.modality == "image":
         with task_status("Training image encoder"):
-            from reamember.neuralnets.train import train_autoencoder
             from reamember.datasets.image import ImageDatasetWrapper
+            from reamember.neuralnets.train import train_autoencoder
 
             dataset = ImageDatasetWrapper(
                 dataset_name=cfg.app.dataset,
@@ -110,7 +103,9 @@ def train_encoder(config):
             click.echo(f"[INFO] Input shape: {input_shape}")
 
             for latent in cfg.neural.latent_dim:
-                path = ensure_directory(get_experiment_path(cfg, EXPERIMENTS_ROOT, latent))
+                path = ensure_directory(
+                    get_experiment_path(cfg, EXPERIMENTS_ROOT, latent)
+                )
 
                 train_autoencoder(
                     config=cfg.neural,
@@ -310,7 +305,9 @@ def test_classifier_command(config):
 
             fig.write_image(path / "classifier_confmatrix.png")
             fig.write_html(path / "classifier_confmatrix.html")
-            click.echo(f"[INFO] Saving confusion matrix to: {path / 'classifier_confmatrix.png'} and {path / 'classifier_confmatrix.html'}")
+            click.echo(
+                f"[INFO] Saving confusion matrix to: {path / 'classifier_confmatrix.png'} and {path / 'classifier_confmatrix.html'}"
+            )
 
     click.echo("[INFO] Classifier testing completed.")
 
@@ -331,6 +328,7 @@ def test_recognition(config, noise):
 
     if cfg.app.modality == "text":
         from reamember.pipes.text import test_recognition
+
         test_recognition(
             cfg,
             device=device,
@@ -339,7 +337,10 @@ def test_recognition(config, noise):
         )
         return
     else:
-        raise NotImplementedError("Recognition testing is only implemented for text modality.")
+        raise NotImplementedError(
+            "Recognition testing is only implemented for text modality."
+        )
+
 
 @cli.command()
 @click.option("--config", help="YAML configuration.")
@@ -466,7 +467,12 @@ def launch_tensorboard():
 
         with task_status("Launching TensorBoard"):
             subprocess.run(
-                ["tensorboard", f"--logdir={Path('logs')}", "--port=6006", "--bind_all"],
+                [
+                    "tensorboard",
+                    f"--logdir={Path('logs')}",
+                    "--port=6006",
+                    "--bind_all",
+                ],
                 check=True,
             )
     except FileNotFoundError:
@@ -485,13 +491,16 @@ def clean_logs():
         else:
             click.echo(f"[INFO] No logs to clean at: {log_path}")
 
+
 @cli.command()
 @click.option("--config", help="YAML configuration.")
 def interactive(config):
     "Start an interactive session."
     cfg = load_cli_config(config)
     from reamember.pipes.text import interactive_memory
+
     interactive_memory(cfg, device=device, experiments_root=EXPERIMENTS_ROOT)
+
 
 #########################################################################
 # Add commands and run the main CLI group

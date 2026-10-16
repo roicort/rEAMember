@@ -1,6 +1,7 @@
 import numpy as np
 import torch
 from tqdm import tqdm
+
 from reamember.utils import task_status
 
 
@@ -282,7 +283,11 @@ def evalm_text(eam, dataset, quantizer, batch_size=None):
     for feature in tqdm(features_rounded):
         memory, recognized, weight = eam.recall(feature)
         memory = memory.cpu().numpy() if torch.is_tensor(memory) else memory
-        recognized = bool(recognized.cpu().item()) if torch.is_tensor(recognized) else bool(recognized)
+        recognized = (
+            bool(recognized.cpu().item())
+            if torch.is_tensor(recognized)
+            else bool(recognized)
+        )
         weight = weight.cpu().numpy() if torch.is_tensor(weight) else weight
 
         memories_features.append(memory)
@@ -299,7 +304,13 @@ def evalm_text(eam, dataset, quantizer, batch_size=None):
     recognized_percentage = recognized_count / total if total > 0 else 0.0
     unrecognized_percentage = 1.0 - recognized_percentage if total > 0 else 0.0
 
-    return memories_features, recognitions, weights, recognized_percentage, unrecognized_percentage
+    return (
+        memories_features,
+        recognitions,
+        weights,
+        recognized_percentage,
+        unrecognized_percentage,
+    )
 
 
 def evalm_text_confusion(
@@ -319,12 +330,12 @@ def evalm_text_confusion(
 
     # EAM is filled with only the registered dataset.
     # Evaluate registered and unregistered or registered-noised datasets.
-    _, registered_recognitions, _, registered_recognized, registered_unrecognized = evalm_text(
-        eam, registered_dataset, quantizer, batch_size=batch_size
+    _, registered_recognitions, _, registered_recognized, registered_unrecognized = (
+        evalm_text(eam, registered_dataset, quantizer, batch_size=batch_size)
     )
     # Evaluate the unregistered or registered-noised dataset.
-    _, comparison_recognitions, _, comparison_recognized, comparison_unrecognized = evalm_text(
-        eam, comparison_dataset, quantizer, batch_size=batch_size
+    _, comparison_recognitions, _, comparison_recognized, comparison_unrecognized = (
+        evalm_text(eam, comparison_dataset, quantizer, batch_size=batch_size)
     )
 
     row_labels = ["registered", comparison_label]
@@ -361,7 +372,10 @@ def evalm_text_confusion(
         test_total = len(test_recognitions)
         row_labels.append("test")
         matrix_rows.append(
-            [int(np.sum(test_recognitions)), int(test_total - np.sum(test_recognitions))]
+            [
+                int(np.sum(test_recognitions)),
+                int(test_total - np.sum(test_recognitions)),
+            ]
         )
         counts["test_total"] = int(test_total)
         rates["test_recognized_rate"] = float(test_recognized)

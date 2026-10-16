@@ -2,13 +2,13 @@ import os
 import random
 from dataclasses import dataclass, field
 from enum import Enum
+from numbers import Real
 from pathlib import Path
 from typing import Any
-from numbers import Real
 
 import numpy as np
 import torch
-from omegaconf import DictConfig, ListConfig, MISSING, OmegaConf
+from omegaconf import MISSING, DictConfig, ListConfig, OmegaConf
 from tqdm import tqdm
 
 
@@ -64,10 +64,7 @@ class RuntimeConfig:
 
 def _normalize_special_values(value: Any) -> Any:
     if isinstance(value, dict):
-        return {
-            key: _normalize_special_values(item)
-            for key, item in value.items()
-        }
+        return {key: _normalize_special_values(item) for key, item in value.items()}
     if isinstance(value, list):
         return [_normalize_special_values(item) for item in value]
     if isinstance(value, str) and value.strip().lower() == "none":
@@ -105,7 +102,9 @@ def _validate_runtime_config(cfg: DictConfig) -> None:
     if not dataset:
         raise ValueError("app.dataset must not be empty")
 
-    if cfg.app.modality == Modality.text and not (cfg.app.column and cfg.app.column.strip()):
+    if cfg.app.modality == Modality.text and not (
+        cfg.app.column and cfg.app.column.strip()
+    ):
         raise ValueError("app.column is required when app.modality is 'text'")
 
     _require_non_empty_int_list(list(cfg.neural.latent_dim), "neural.latent_dim")
@@ -168,6 +167,7 @@ def setGlobalSeed(seed: int) -> None:
         torch.backends.cudnn.deterministic = True
         torch.backends.cudnn.benchmark = False
 
+
 def setDeviceConfig():
     """
     Configura el dispositivo para PyTorch y spaCy según la disponibilidad de hardware.
@@ -186,7 +186,7 @@ def setDeviceConfig():
     else:
         # Usar CPU como fallback
         device = torch.device("cpu")
-    
+
     # Configurar TQDM en pandas
     tqdm.pandas()
 
@@ -195,5 +195,5 @@ def setDeviceConfig():
     except Exception as e:
         print("Error:", e)
         raise e
-    
+
     return device

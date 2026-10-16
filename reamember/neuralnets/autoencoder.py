@@ -1,7 +1,8 @@
-import torch
-import torch.nn as nn
 import pytorch_lightning as pl
+import torch
 import torchmetrics
+from torch import nn
+
 
 class Autoencoder(pl.LightningModule):
     def __init__(self, input_shape, latent_dim, lr=1e-3):
@@ -18,18 +19,18 @@ class Autoencoder(pl.LightningModule):
             nn.ReLU(),
             nn.MaxPool2d(2),
             nn.Flatten(),
-            nn.Linear((h//4)*(w//4)*32, latent_dim),
-            nn.LayerNorm(latent_dim)
+            nn.Linear((h // 4) * (w // 4) * 32, latent_dim),
+            nn.LayerNorm(latent_dim),
         )
         self.decoder = nn.Sequential(
-            nn.Linear(latent_dim, (h//4)*(w//4)*32),
+            nn.Linear(latent_dim, (h // 4) * (w // 4) * 32),
             nn.ReLU(),
-            nn.Unflatten(1, (32, h//4, w//4)),
+            nn.Unflatten(1, (32, h // 4, w // 4)),
             nn.ConvTranspose2d(32, 16, 3, stride=2, padding=1, output_padding=1),
             nn.BatchNorm2d(16),
             nn.ReLU(),
             nn.ConvTranspose2d(16, c, 3, stride=2, padding=1, output_padding=1),
-            nn.Sigmoid()
+            nn.Sigmoid(),
         )
         self.loss_fn = nn.HuberLoss()
         self.train_mae = torchmetrics.MeanAbsoluteError()
@@ -51,8 +52,8 @@ class Autoencoder(pl.LightningModule):
         x_hat = self(x)
         loss = self.loss_fn(x_hat, x)
         mae = self.train_mae(x_hat, x)
-        self.log('train_loss', loss)
-        self.log('train_mae', mae)
+        self.log("train_loss", loss)
+        self.log("train_mae", mae)
         return loss
 
     def validation_step(self, batch, batch_idx):
@@ -60,8 +61,8 @@ class Autoencoder(pl.LightningModule):
         x_hat = self(x)
         loss = self.loss_fn(x_hat, x)
         mae = self.val_mae(x_hat, x)
-        self.log('val_loss', loss)
-        self.log('val_mae', mae)
+        self.log("val_loss", loss)
+        self.log("val_mae", mae)
         return loss
 
     def configure_optimizers(self):

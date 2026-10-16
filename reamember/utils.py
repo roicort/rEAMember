@@ -1,20 +1,19 @@
-import torch
-import rich_click as click
+import json
+import sys
+from collections.abc import Mapping
 from contextlib import contextmanager
+from pathlib import Path
+
+import numpy as np
+import rich_click as click
+import torch
+from omegaconf import ListConfig, OmegaConf
 from rich import box
 from rich.columns import Columns
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
-from omegaconf import ListConfig, OmegaConf
-from collections.abc import Mapping
-from pathlib import Path
-import json
-import sys
 from tqdm import tqdm
-import numpy as np
-from reamember.eam.associative import NumpyAssociativeMemory as AssociativeMemory
-
 
 console = Console()
 
@@ -36,6 +35,7 @@ rich_conf = click.RichHelpConfiguration(
     style_options_panel_border="dim",
     style_commands_panel_border="dim",
 )
+
 
 def config_summary(cfg):
     """
@@ -151,7 +151,9 @@ def load_embeddings_dataset(experiment_path, device, noised=False):
     """
     Load the cached embeddings dataset from an experiment directory.
     """
-    embeddings_path = Path(experiment_path) / ("embeddings_noised.pth" if noised else "embeddings.pth")
+    embeddings_path = Path(experiment_path) / (
+        "embeddings_noised.pth" if noised else "embeddings.pth"
+    )
     try:
         click.echo(f"[INFO] Loading embeddings dataset from: {embeddings_path}")
         return torch.load(embeddings_path, map_location=device, weights_only=False)
@@ -199,6 +201,7 @@ def decode_text_embeddings(model, embeddings, device=None, batch_size=64):
 
     return reconstructed_texts
 
+
 class Quant:
     """Quantizer/dequantizer class.
 
@@ -238,7 +241,7 @@ class Quant:
         idx = np.where(self.minima == self.maxima)[0]
         if len(idx) > 0:
             print(
-                f'Minima and maxima have the same value in position(s): {idx.tolist()}'
+                f"Minima and maxima have the same value in position(s): {idx.tolist()}"
             )
 
     @staticmethod
@@ -279,7 +282,7 @@ class Quant:
     def _iter_bounds(self, a: np.ndarray):
         values = self._as_numpy(a)
         if values.ndim != 1:
-            raise ValueError(f'The array must have one dimension: {values.shape}.')
+            raise ValueError(f"The array must have one dimension: {values.shape}.")
 
         if np.ndim(self.minima) == 0:
             return zip(
@@ -309,7 +312,7 @@ class Quant:
     def quantize(self, a: np.ndarray, m: int):
         a = self._as_numpy(a)
         if a.ndim > 2:
-            raise ValueError(f'The array as more than two dimensions: {a.shape}.')
+            raise ValueError(f"The array as more than two dimensions: {a.shape}.")
         if a.ndim == 0:
             raise ValueError("Corpus must have at least one dimension")
 
@@ -327,7 +330,7 @@ class Quant:
     def dequantize(self, a: np.array, m: int):
         a = self._as_numpy(a)
         if a.ndim > 2:
-            raise ValueError(f'The array as more than two dimensions: {a.shape}.')
+            raise ValueError(f"The array as more than two dimensions: {a.shape}.")
         if a.ndim == 0:
             raise ValueError("Corpus must have at least one dimension")
 

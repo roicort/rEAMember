@@ -1,11 +1,13 @@
-from pathlib import Path
 import os
+from pathlib import Path
+
+import plotly.express as px
 import torch
+from sklearn.decomposition import PCA
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
-import plotly.express as px
-from sklearn.decomposition import PCA
+
 
 def evalImage(dataloader, model, device=None):
     embeddings = []
@@ -48,7 +50,9 @@ def evalText(dataloader, model, device=None):
             if torch.is_tensor(batch_embeddings):
                 embeddings.append(batch_embeddings.detach().cpu().float())
             else:
-                embeddings.append(torch.as_tensor(batch_embeddings, dtype=torch.float32))
+                embeddings.append(
+                    torch.as_tensor(batch_embeddings, dtype=torch.float32)
+                )
 
     if len(embeddings) == 0:
         return torch.empty((0, latent_dim), dtype=torch.float32)
@@ -123,7 +127,9 @@ def get_embeddings(
                 # The latent dimension is the second dimension of the embeddings
                 latent = embedding_dataset.train.data.shape[1]
 
-                tb_dir = Path("./logs") / f"{dataset_name}_{model_name}_{latent}_embeddings"
+                tb_dir = (
+                    Path("./logs") / f"{dataset_name}_{model_name}_{latent}_embeddings"
+                )
                 writer = SummaryWriter(log_dir=str(tb_dir))
                 emb_train = embeddings_train
                 emb_test = embeddings_test
@@ -143,7 +149,9 @@ def get_embeddings(
                 writer.add_embedding(
                     emb_train, metadata=labels_train, tag="train-embeddings"
                 )
-                writer.add_embedding(emb_test, metadata=labels_test, tag="test-embeddings")
+                writer.add_embedding(
+                    emb_test, metadata=labels_test, tag="test-embeddings"
+                )
                 writer.close()
 
                 print(f"[INFO] Embeddings registrados en TensorBoard: {tb_dir}")
@@ -153,19 +161,26 @@ def get_embeddings(
     else:
         print(f"[INFO] Embeddings already exist: {save_path}, plotting...")
 
-
     # Load embeddings with labels for plotting
-    from reamember.datasets.embedding import EmbeddingDatasetWrapper, EmbeddingDataset
+    from reamember.datasets.embedding import EmbeddingDataset, EmbeddingDatasetWrapper
+
     torch.serialization.add_safe_globals([EmbeddingDatasetWrapper, EmbeddingDataset])
     embedding_dataset = torch.load(save_path)
 
     # Plot PCA embeddings using plotly
 
     pca = PCA(n_components=2)
-    mebeddings_all = torch.cat([embedding_dataset.train.data, embedding_dataset.test.data], dim=0).cpu().numpy()
+    mebeddings_all = (
+        torch.cat([embedding_dataset.train.data, embedding_dataset.test.data], dim=0)
+        .cpu()
+        .numpy()
+    )
     pca_embeddings = pca.fit_transform(mebeddings_all)
 
-    if embedding_dataset.train.targets is not None and embedding_dataset.test.targets is not None:
+    if (
+        embedding_dataset.train.targets is not None
+        and embedding_dataset.test.targets is not None
+    ):
         labels_all = (
             torch.cat(
                 [embedding_dataset.train.targets, embedding_dataset.test.targets], dim=0

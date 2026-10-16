@@ -1,36 +1,40 @@
 import gzip
-import numpy as np
-import struct
 import os
+import struct
 from array import array
-import PIL.Image as Image
+
+import numpy as np
+from PIL import Image
 from tqdm import tqdm
+
 
 class SPOT10Loader:
     def __init__(self):
         pass
 
     @staticmethod
-    def get_data(dataset_dir, kind='train'):
+    def get_data(dataset_dir, kind="train"):
         """Load custom MNIST data from `path`"""
-        labels_path = os.path.join(dataset_dir, f'{kind}-labels-idx1-ubyte.gz')
-        images_path = os.path.join(dataset_dir, f'{kind}-images-idx3-ubyte.gz')
+        labels_path = os.path.join(dataset_dir, f"{kind}-labels-idx1-ubyte.gz")
+        images_path = os.path.join(dataset_dir, f"{kind}-images-idx3-ubyte.gz")
 
-        with gzip.open(labels_path, 'rb') as file:
+        with gzip.open(labels_path, "rb") as file:
             magic, size = struct.unpack(">II", file.read(8))
             if magic != 2049:
-                raise ValueError('Magic number mismatch, expected 2049, got {}'.format(magic))
+                raise ValueError(f"Magic number mismatch, expected 2049, got {magic}")
             labels = array("B", file.read())
 
-        with gzip.open(images_path, 'rb') as file:
+        with gzip.open(images_path, "rb") as file:
             magic, size, rows, cols = struct.unpack(">IIII", file.read(16))
             if magic != 2051:
-                raise ValueError('Magic number mismatch, expected 2051, got {}'.format(magic))
+                raise ValueError(f"Magic number mismatch, expected 2051, got {magic}")
             image_data = array("B", file.read())
 
         images = np.zeros((size, rows, cols), dtype=np.uint8)
         for i in range(size):
-            images[i] = np.array(image_data[i * rows * cols:(i + 1) * rows * cols]).reshape(rows, cols)
+            images[i] = np.array(
+                image_data[i * rows * cols : (i + 1) * rows * cols]
+            ).reshape(rows, cols)
 
         return np.array(images), np.array(labels)
 
@@ -38,20 +42,32 @@ class SPOT10Loader:
 def gz2folder(save_path):
 
     data_loader = SPOT10Loader()
-    images_train, labels_train = data_loader.get_data(dataset_dir="./raw", kind='train')
-    images_test, labels_test = data_loader.get_data(dataset_dir="./raw", kind='test')
+    images_train, labels_train = data_loader.get_data(dataset_dir="./raw", kind="train")
+    images_test, labels_test = data_loader.get_data(dataset_dir="./raw", kind="test")
     os.makedirs(save_path, exist_ok=True)
 
     classes = list(set(labels_train.tolist()))
     for i in classes:
         os.makedirs(f"{save_path}/{i}", exist_ok=True)
 
-    for i, (image, label) in enumerate(tqdm(zip(images_train, labels_train), desc="Saving training images", total=len(images_train))):
+    for i, (image, label) in enumerate(
+        tqdm(
+            zip(images_train, labels_train),
+            desc="Saving training images",
+            total=len(images_train),
+        )
+    ):
         image_path = f"{save_path}/{label}/{i}.png"
         image = Image.fromarray(image)
         image.save(image_path)
 
-    for i, (image, label) in enumerate(tqdm(zip(images_test, labels_test), desc="Saving test images", total=len(images_test))):
+    for i, (image, label) in enumerate(
+        tqdm(
+            zip(images_test, labels_test),
+            desc="Saving test images",
+            total=len(images_test),
+        )
+    ):
         image_path = f"{save_path}/{label}/{i}.png"
         image = Image.fromarray(image)
         image.save(image_path)
@@ -73,7 +89,9 @@ class UbyteImageProcessor:
                 continue
             for filename in os.listdir(folder_path):
                 if filename.endswith(".png"):
-                    img = Image.open(os.path.join(folder_path, filename)).convert('L')  # Convert image to grayscale
+                    img = Image.open(os.path.join(folder_path, filename)).convert(
+                        "L"
+                    )  # Convert image to grayscale
                     img = img.resize(self.image_size)  # Resize image to 32x32 pixels
                     img_np = np.array(img, dtype=np.uint8)
                     images.append(img_np)
@@ -82,14 +100,14 @@ class UbyteImageProcessor:
 
     def save_idx_images(self, filepath, images):
         if not isinstance(images, (np.ndarray, list)):
-            raise TypeError('Unsupported data type.')
+            raise TypeError("Unsupported data type.")
 
         # Ensure images is a numpy array
         images = np.array(images)
 
         # Ensure the images array has the right shape
         if images.ndim != 3:
-            raise ValueError('Images array must be 3-dimensional.')
+            raise ValueError("Images array must be 3-dimensional.")
 
         magic_number = 2051
         num_images = images.shape[0]
@@ -100,55 +118,68 @@ class UbyteImageProcessor:
 
         data_list = [header]
         for image in images:
-            data_list.append(struct.pack('>' + 'B' * rows * cols, *image.flatten()))
+            data_list.append(struct.pack(">" + "B" * rows * cols, *image.flatten()))
 
-        data = b''.join(data_list)
+        data = b"".join(data_list)
 
-        with gzip.open(filepath, 'wb') as f:
+        with gzip.open(filepath, "wb") as f:
             f.write(data)
 
     def save_idx_labels(self, filepath, labels):
         if not isinstance(labels, (np.ndarray, list)):
-            raise TypeError('Unsupported label type.')
+            raise TypeError("Unsupported label type.")
 
         # Ensure labels is a numpy array
         labels = np.array(labels)
 
         # Ensure the labels array has the right shape
         if labels.ndim != 1:
-            raise ValueError('Labels array must be 1-dimensional.')
+            raise ValueError("Labels array must be 1-dimensional.")
 
         magic_number = 2049
         num_labels = len(labels)
 
         data = struct.pack(">II", magic_number, num_labels)
 
-        data += struct.pack('>' + 'B' * num_labels, *labels)
+        data += struct.pack(">" + "B" * num_labels, *labels)
 
-        with gzip.open(filepath, 'wb') as f:
+        with gzip.open(filepath, "wb") as f:
             f.write(data)
+
 
 # Example implementation
 if __name__ == "__main__":
     data_loader = SPOT10Loader()
-    images, labels = data_loader.get_data(dataset_dir="../dataset", kind='train')
+    images, labels = data_loader.get_data(dataset_dir="../dataset", kind="train")
     print(images.shape, labels.shape)
     print(np.unique(labels, return_counts=True))
     print("\n")
-    images, labels = data_loader.get_data(dataset_dir="../dataset", kind='test')
+    images, labels = data_loader.get_data(dataset_dir="../dataset", kind="test")
     print(images.shape, labels.shape)
     print(np.unique(labels, return_counts=True))
 
     gz2folder("./images")
 
     class_descriptions = [
-        "cheetah", "deer", "giraffe", "hyena", "jaguar",
-        "leopard", "tapir", "tiger", "WhaleShark", "zebra"
+        "cheetah",
+        "deer",
+        "giraffe",
+        "hyena",
+        "jaguar",
+        "leopard",
+        "tapir",
+        "tiger",
+        "WhaleShark",
+        "zebra",
     ]
 
     # Instantiate the processor for training and testing data
-    train_processor = UbyteImageProcessor('../dataset/train', class_descriptions, image_size=(32,32))
-    test_processor = UbyteImageProcessor('../dataset/test', class_descriptions, image_size=(32,32))
+    train_processor = UbyteImageProcessor(
+        "../dataset/train", class_descriptions, image_size=(32, 32)
+    )
+    test_processor = UbyteImageProcessor(
+        "../dataset/test", class_descriptions, image_size=(32, 32)
+    )
 
     # Load images and labels
     train_images, train_labels = train_processor.load_images_from_folders()
@@ -158,8 +189,12 @@ if __name__ == "__main__":
     print(train_images.shape, train_labels.shape)
 
     # Save images and labels in IDX format
-    train_processor.save_idx_images('../dataset/train-images-idx3-ubyte.gz', train_images)
-    train_processor.save_idx_labels('../dataset/train-labels-idx1-ubyte.gz', train_labels)
+    train_processor.save_idx_images(
+        "../dataset/train-images-idx3-ubyte.gz", train_images
+    )
+    train_processor.save_idx_labels(
+        "../dataset/train-labels-idx1-ubyte.gz", train_labels
+    )
 
-    test_processor.save_idx_images('../dataset/test-images-idx3-ubyte.gz', test_images)
-    test_processor.save_idx_labels('../dataset/test-labels-idx1-ubyte.gz', test_labels)
+    test_processor.save_idx_images("../dataset/test-images-idx3-ubyte.gz", test_images)
+    test_processor.save_idx_labels("../dataset/test-labels-idx1-ubyte.gz", test_labels)

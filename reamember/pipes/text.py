@@ -1,31 +1,30 @@
-import torch
-import numpy as np
-import pandas as pd
 import json
 import math
 import string
-from nltk.metrics import edit_distance
-from tqdm import tqdm
-from plotly import graph_objects as go
-from reamember.eam.associative import NumpyAssociativeMemory as AssociativeMemory
-from reamember.eam.mops import evalm_text_confusion, evalm_text, memorize
-from reamember.utils import (
-    ensure_directory,
-    get_scalar_config_value,
-    get_experiment_path,
-    decode_text_embeddings,
-    load_embeddings_dataset,
-    Quant,
-)
-from omegaconf import ListConfig
-
-from reamember.neuralnets.transformer import SONAR
-from reamember.embeddings import get_embeddings as build_embeddings
-import rich_click as click
-from reamember.datasets.text import TextDatasetWrapper
-from reamember.datasets.embedding import EmbeddingDatasetWrapper
-from omegaconf import OmegaConf
 from pathlib import Path
+
+import numpy as np
+import pandas as pd
+import rich_click as click
+import torch
+from nltk.metrics import edit_distance
+from omegaconf import ListConfig, OmegaConf
+from tqdm import tqdm
+
+from reamember.datasets.embedding import EmbeddingDatasetWrapper
+from reamember.datasets.text import TextDatasetWrapper
+from reamember.eam.associative import NumpyAssociativeMemory as AssociativeMemory
+from reamember.eam.mops import evalm_text, evalm_text_confusion, memorize
+from reamember.embeddings import get_embeddings as build_embeddings
+from reamember.neuralnets.transformer import SONAR
+from reamember.utils import (
+    Quant,
+    decode_text_embeddings,
+    ensure_directory,
+    get_experiment_path,
+    get_scalar_config_value,
+    load_embeddings_dataset,
+)
 
 
 def get_memory_batch_size(cfg, domain):
@@ -39,6 +38,7 @@ def get_memory_batch_size(cfg, domain):
 
     domain_index = list(cfg.memory.domain).index(domain)
     return batch_size[domain_index]
+
 
 def create_sonar_model(runtime_device):
     """
@@ -85,9 +85,7 @@ def apply_text_noise(text, noise_level=0.1, character_mask=None):
     if normalized_noise <= 0:
         return text
 
-    replaceable_positions = [
-        index for index, char in enumerate(text) if char.isalpha()
-    ]
+    replaceable_positions = [index for index, char in enumerate(text) if char.isalpha()]
     if not replaceable_positions:
         replaceable_positions = [
             index for index, char in enumerate(text) if not char.isspace()
@@ -114,12 +112,16 @@ def apply_text_noise(text, noise_level=0.1, character_mask=None):
             else character_mask
         )
 
-    return ''.join(masked_text)
+    return "".join(masked_text)
 
 
 def test_recognition(cfg, device, experiments_root, use_noise=False):
 
-    latent = cfg.neural.latent_dim[0] if isinstance(cfg.neural.latent_dim, ListConfig) else int(cfg.neural.latent_dim)
+    latent = (
+        cfg.neural.latent_dim[0]
+        if isinstance(cfg.neural.latent_dim, ListConfig)
+        else int(cfg.neural.latent_dim)
+    )
 
     path = get_experiment_path(cfg, experiments_root, latent)
     embeddings_dataset = load_embeddings_dataset(path, device=device)
@@ -132,7 +134,14 @@ def test_recognition(cfg, device, experiments_root, use_noise=False):
             noised=True,
         )
         recognition_dirname = f"recognition_noise_{cfg.app.noise}"
-        quant_source = torch.cat([embeddings_dataset.train.data, embeddings_dataset_noise.train.data, embeddings_dataset_noise.test.data], dim=0)
+        quant_source = torch.cat(
+            [
+                embeddings_dataset.train.data,
+                embeddings_dataset_noise.train.data,
+                embeddings_dataset_noise.test.data,
+            ],
+            dim=0,
+        )
         test_embeddings_dataset = embeddings_dataset_noise
 
         memory_wrapper = EmbeddingDatasetWrapper(
@@ -147,7 +156,9 @@ def test_recognition(cfg, device, experiments_root, use_noise=False):
 
     else:
         test_embeddings_dataset = embeddings_dataset
-        quant_source = torch.cat([embeddings_dataset.train.data, embeddings_dataset.test.data], dim=0)
+        quant_source = torch.cat(
+            [embeddings_dataset.train.data, embeddings_dataset.test.data], dim=0
+        )
         train_embeddings = embeddings_dataset.train.data
         # Split train into registered and unregistered halves.
         split_index = max(1, len(train_embeddings) // 2)
@@ -161,7 +172,7 @@ def test_recognition(cfg, device, experiments_root, use_noise=False):
         comparison_source = "second_half_of_train"
         test_source = "test"
 
-    quantizer = Quant( quant_source ) # Create quantizer with train + test
+    quantizer = Quant(quant_source)  # Create quantizer with train + test
 
     # First Experiment: Test Recognition Rates
 
@@ -199,7 +210,7 @@ def test_recognition(cfg, device, experiments_root, use_noise=False):
         f"xis={xis}, iotas={iotas}, kappas={kappas}, use_noise={use_noise}"
     )
 
-    confusion_summaries = [] # Prepare to collect confusion summaries for all domains
+    confusion_summaries = []  # Prepare to collect confusion summaries for all domains
     noise_level = cfg.app.noise if use_noise else 0
     confusion_summary_path = (
         recognition_text_path / f"recognition_confusion_summary_{noise_level}.json"
@@ -249,8 +260,6 @@ def test_recognition(cfg, device, experiments_root, use_noise=False):
                     for iota in iotas:
                         grid_progress.reset(kappa_task)
                         for kappa in kappas:
-
-
                             eam = AssociativeMemory(
                                 n=latent,
                                 m=domain,
@@ -297,7 +306,8 @@ def test_recognition(cfg, device, experiments_root, use_noise=False):
                             }
 
                             confusion_path = (
-                                raw_path / f"recognition_confusion_domain_{domain}_sigma_{sigma}_xi_{xi}_iota_{iota}_kappa_{kappa}.json"
+                                raw_path
+                                / f"recognition_confusion_domain_{domain}_sigma_{sigma}_xi_{xi}_iota_{iota}_kappa_{kappa}.json"
                             )
 
                             with open(confusion_path, "w", encoding="utf-8") as f_out:
@@ -344,7 +354,9 @@ def test_recognition(cfg, device, experiments_root, use_noise=False):
                                 f"| test recognized: {confusion['rates']['test_recognized_rate']:.4f}"
                             )
                             confusion_summaries.append(confusion_payload)
-                            with open(confusion_summary_path, "w", encoding="utf-8") as f_out:
+                            with open(
+                                confusion_summary_path, "w", encoding="utf-8"
+                            ) as f_out:
                                 json.dump(
                                     confusion_summaries,
                                     f_out,
@@ -388,7 +400,11 @@ def test_text_encoder(cfg, n_examples, device, experiments_root):
         seed=cfg.app.seed,
     )
 
-    latent = cfg.neural.latent_dim[0] if isinstance(cfg.neural.latent_dim, ListConfig) else int(cfg.neural.latent_dim)
+    latent = (
+        cfg.neural.latent_dim[0]
+        if isinstance(cfg.neural.latent_dim, ListConfig)
+        else int(cfg.neural.latent_dim)
+    )
 
     path = get_experiment_path(cfg, experiments_root, latent)
     transformer = create_sonar_model(device)
@@ -493,7 +509,10 @@ def test_text_encoder(cfg, n_examples, device, experiments_root):
             f"| noise edit distance: {noise_summary['mean_edit_distance']:.4f}"
         )
     click.echo(f"[INFO] Aligned reconstructed texts saved to: {aligned_samples_path}")
-    click.echo(f"[INFO] Aligned reconstruction metrics saved to: {aligned_metrics_path}")
+    click.echo(
+        f"[INFO] Aligned reconstruction metrics saved to: {aligned_metrics_path}"
+    )
+
 
 def get_text_embeddings(cfg, device, experiments_root):
     click.echo(f"[INFO] Loading dataset: {cfg.app.dataset}")
@@ -504,7 +523,11 @@ def get_text_embeddings(cfg, device, experiments_root):
         seed=cfg.app.seed,
     )
 
-    latent = cfg.neural.latent_dim[0] if isinstance(cfg.neural.latent_dim, ListConfig) else int(cfg.neural.latent_dim)
+    latent = (
+        cfg.neural.latent_dim[0]
+        if isinstance(cfg.neural.latent_dim, ListConfig)
+        else int(cfg.neural.latent_dim)
+    )
     path = get_experiment_path(cfg, experiments_root, latent)
     file_embeddings_path = path / "embeddings.pth"
     model = create_sonar_model(device)
@@ -539,7 +562,7 @@ def get_text_embeddings(cfg, device, experiments_root):
         # Save the materialized test texts with noise for later analysis
         noised_test_texts_path = path / "noised_test_texts.npy"
         np.save(noised_test_texts_path, np.array(noised_test_texts, dtype=object))
-        
+
         build_embeddings(
             model,
             noised_dataset,
@@ -548,6 +571,7 @@ def get_text_embeddings(cfg, device, experiments_root):
             save_path=file_embeddings_path,
             num_workers=0,
         )
+
 
 def create_text_memories(cfg, n_saved, device, use_noise=False, experiments_root=None):
     latent = int(get_scalar_config_value(cfg.neural.latent_dim))
@@ -559,9 +583,7 @@ def create_text_memories(cfg, n_saved, device, use_noise=False, experiments_root
     kappa = float(get_scalar_config_value(cfg.memory.kappa))
     xi = float(get_scalar_config_value(cfg.memory.xi))
 
-    click.echo(
-        f"[INFO] Creating text memories with latent={latent}, domain={domain}"
-    )
+    click.echo(f"[INFO] Creating text memories with latent={latent}, domain={domain}")
 
     path = get_experiment_path(cfg, experiments_root, latent)
     embeddings_dataset = load_embeddings_dataset(path, device=device)
@@ -572,10 +594,14 @@ def create_text_memories(cfg, n_saved, device, use_noise=False, experiments_root
         seed=cfg.app.seed,
     )
 
-    all = torch.cat([embeddings_dataset.train.data, embeddings_dataset.test.data], dim=0)
+    all = torch.cat(
+        [embeddings_dataset.train.data, embeddings_dataset.test.data], dim=0
+    )
 
     if use_noise:
-        noised_embeddings_dataset = load_embeddings_dataset(path, device=device, noised=True)
+        noised_embeddings_dataset = load_embeddings_dataset(
+            path, device=device, noised=True
+        )
         noised_test_texts = np.load(
             path / "noised_test_texts.npy",
             allow_pickle=True,
@@ -590,7 +616,7 @@ def create_text_memories(cfg, n_saved, device, use_noise=False, experiments_root
         sigma=sigma,
         iota=iota,
         kappa=kappa,
-   )
+    )
     eam = memorize(
         eam,
         dataset=all,
@@ -603,7 +629,7 @@ def create_text_memories(cfg, n_saved, device, use_noise=False, experiments_root
         eval_dataset = noised_embeddings_dataset.test
     else:
         eval_dataset = embeddings_dataset.test
-    
+
     (
         memories_features,
         recognitions,
@@ -622,8 +648,12 @@ def create_text_memories(cfg, n_saved, device, use_noise=False, experiments_root
     transformer = create_sonar_model(device)
 
     if use_noise:
-        click.echo(f"[INFO] Evaluating text reconstruction with noise level: {cfg.app.noise}")
-        output_path = ensure_directory(path / f"dim{domain}_memory_reconstructed_noise_{cfg.app.noise}")
+        click.echo(
+            f"[INFO] Evaluating text reconstruction with noise level: {cfg.app.noise}"
+        )
+        output_path = ensure_directory(
+            path / f"dim{domain}_memory_reconstructed_noise_{cfg.app.noise}"
+        )
     else:
         click.echo("[INFO] Evaluating text reconstruction without noise")
         output_path = ensure_directory(path / f"dim{domain}_memory_reconstructed")
@@ -677,7 +707,7 @@ def create_text_memories(cfg, n_saved, device, use_noise=False, experiments_root
             "recognized_count": int(np.sum(recognitions)),
             "unrecognized_count": int(total - np.sum(recognitions)),
             "samples": int(total),
-        }
+        },
     }
 
     metrics_path = output_path / "metrics.json"
@@ -715,7 +745,9 @@ def text_reconstruction_metrics(
         }
 
     original_texts = [str(text) for text in original_texts]
-    cue_texts = original_texts if cue_texts is None else [str(text) for text in cue_texts]
+    cue_texts = (
+        original_texts if cue_texts is None else [str(text) for text in cue_texts]
+    )
 
     if len(cue_texts) != len(original_texts):
         raise ValueError("cue_texts and original_texts must have the same length")
@@ -752,18 +784,35 @@ def text_reconstruction_metrics(
     reconstructed_embeddings = torch.cat(reconstructed_embeddings, dim=0)
     source_embeddings = source_embeddings.detach().cpu()
 
-    source_norm = torch.linalg.norm(source_embeddings, dim=1) # Compute norms for cosine similarity
-    reconstructed_norm = torch.linalg.norm(reconstructed_embeddings, dim=1) # Compute norms for cosine similarity
-    denom = torch.clamp(source_norm * reconstructed_norm, min=1e-12) # Avoid division by zero in cosine similarity calculation
+    source_norm = torch.linalg.norm(
+        source_embeddings, dim=1
+    )  # Compute norms for cosine similarity
+    reconstructed_norm = torch.linalg.norm(
+        reconstructed_embeddings, dim=1
+    )  # Compute norms for cosine similarity
+    denom = torch.clamp(
+        source_norm * reconstructed_norm, min=1e-12
+    )  # Avoid division by zero in cosine similarity calculation
     cosine_scores = (
         torch.sum(source_embeddings * reconstructed_embeddings, dim=1) / denom
-    ) # Get cosine similarity scores between source and reconstructed embeddings
-    l2_scores = torch.linalg.norm(source_embeddings - reconstructed_embeddings, dim=1) # Get L2 distance scores between source and reconstructed embeddings
-    euclidean_scores = torch.sqrt(torch.sum((source_embeddings - reconstructed_embeddings) ** 2, dim=1)) # Get Euclidean distance scores between source and reconstructed embeddings
+    )  # Get cosine similarity scores between source and reconstructed embeddings
+    l2_scores = torch.linalg.norm(
+        source_embeddings - reconstructed_embeddings, dim=1
+    )  # Get L2 distance scores between source and reconstructed embeddings
+    euclidean_scores = torch.sqrt(
+        torch.sum((source_embeddings - reconstructed_embeddings) ** 2, dim=1)
+    )  # Get Euclidean distance scores between source and reconstructed embeddings
 
     samples = []
     for index, (original, cue, reconstructed, cosine, l2, euclidean) in enumerate(
-        zip(original_texts, cue_texts, reconstructed_texts, cosine_scores, l2_scores, euclidean_scores)
+        zip(
+            original_texts,
+            cue_texts,
+            reconstructed_texts,
+            cosine_scores,
+            l2_scores,
+            euclidean_scores,
+        )
     ):
         samples.append(
             {
@@ -868,7 +917,9 @@ def get_besttext_params(cfg, config, device, EXPERIMENTS_ROOT, use_noise=False):
 
     for latent in cfg.neural.latent_dim:
         path = get_experiment_path(cfg, EXPERIMENTS_ROOT, latent)
-        partial_save_path = path / f"{latent}_parameters_search_results{noise_suffix}.partial.json"
+        partial_save_path = (
+            path / f"{latent}_parameters_search_results{noise_suffix}.partial.json"
+        )
         embeddings_dataset = load_embeddings_dataset(path, device)
         if use_noise:
             noised_embeddings_dataset = load_embeddings_dataset(
@@ -887,7 +938,7 @@ def get_besttext_params(cfg, config, device, EXPERIMENTS_ROOT, use_noise=False):
 
         train_embeddings = embeddings_dataset.train.data
         test_embeddings = embeddings_dataset.test.data
-        
+
         all_embeddings = torch.cat([train_embeddings, test_embeddings], dim=0)
         quantizer = Quant(all_embeddings)
         test_texts = [str(text) for text in dataset.test.texts]
@@ -911,7 +962,7 @@ def get_besttext_params(cfg, config, device, EXPERIMENTS_ROOT, use_noise=False):
                             progress.reset(kappa_task)
                             for kappa in kappa_values:
                                 batch_size = get_memory_batch_size(cfg, msize)
-                                
+
                                 # Create memory
                                 eam = AssociativeMemory(
                                     n=latent,
@@ -921,7 +972,7 @@ def get_besttext_params(cfg, config, device, EXPERIMENTS_ROOT, use_noise=False):
                                     iota=iota,
                                     kappa=kappa,
                                 )
-                                # Fill memory with all embeddings (train + test) 
+                                # Fill memory with all embeddings (train + test)
                                 eam = memorize(
                                     eam,
                                     dataset=all_embeddings,
@@ -949,10 +1000,11 @@ def get_besttext_params(cfg, config, device, EXPERIMENTS_ROOT, use_noise=False):
                                 recognized_embeddings = memories_features[recognitions]
                                 recognized_texts = [
                                     text
-                                    for text, is_recognized in zip(test_texts, recognitions)
+                                    for text, is_recognized in zip(
+                                        test_texts, recognitions
+                                    )
                                     if is_recognized
                                 ]
-
 
                                 # Obtain reconstruction metrics for the recognized texts and their corresponding embeddings
                                 _, summary = text_reconstruction_metrics(
@@ -976,16 +1028,19 @@ def get_besttext_params(cfg, config, device, EXPERIMENTS_ROOT, use_noise=False):
                                         "mean_cosine": summary["mean_cosine"],
                                         "mean_euclidean": summary["mean_euclidean"],
                                         "mean_l2": summary["mean_l2"],
-                                        "mean_edit_distance": summary["mean_edit_distance"],
+                                        "mean_edit_distance": summary[
+                                            "mean_edit_distance"
+                                        ],
                                     }
                                 )
 
                                 partial_results = global_results + results
-                                click.echo(f"[INFO] Saving results to: {partial_save_path}")
+                                click.echo(
+                                    f"[INFO] Saving results to: {partial_save_path}"
+                                )
                                 with open(partial_save_path, "w") as f:
                                     json.dump(partial_results, f, indent=4)
 
-                                
                                 progress.update(
                                     kappa_task,
                                     advance=1,
@@ -1075,7 +1130,9 @@ def interactive_memory(cfg, device, experiments_root):
     path = get_experiment_path(cfg, experiments_root, latent)
     embeddings_dataset = load_embeddings_dataset(path, device=device)
 
-    all = torch.cat([embeddings_dataset.train.data, embeddings_dataset.test.data], dim=0)
+    all = torch.cat(
+        [embeddings_dataset.train.data, embeddings_dataset.test.data], dim=0
+    )
 
     quantizer = Quant(all)
     transformer = create_sonar_model(device)
@@ -1096,7 +1153,9 @@ def interactive_memory(cfg, device, experiments_root):
         batch_size=batch_size,
     )
 
-    def update_memory_params(eam_instance, xi_value, sigma_value, iota_value, kappa_value):
+    def update_memory_params(
+        eam_instance, xi_value, sigma_value, iota_value, kappa_value
+    ):
         if eam_instance is None:
             return None, "La memoria no esta inicializada."
 
@@ -1109,7 +1168,7 @@ def interactive_memory(cfg, device, experiments_root):
             eam_instance,
             "Parametros actualizados en la instancia actual: "
             f"xi={eam_instance.xi}, sigma={eam_instance.sigma:.4f}, "
-            f"iota={eam_instance.iota:.4f}, kappa={eam_instance.kappa:.4f}."
+            f"iota={eam_instance.iota:.4f}, kappa={eam_instance.kappa:.4f}.",
         )
 
     def apply_noise_to_cue(cue):
@@ -1117,7 +1176,9 @@ def interactive_memory(cfg, device, experiments_root):
         if not cue:
             return ""
 
-        return apply_text_noise(cue, noise_level=get_scalar_config_value(cfg.app.noise or 0.5))
+        return apply_text_noise(
+            cue, noise_level=get_scalar_config_value(cfg.app.noise or 0.5)
+        )
 
     def interactive_recall(cue, eam_instance, progress=gr.Progress()):
         cue = str(cue).strip()
@@ -1136,13 +1197,18 @@ def interactive_memory(cfg, device, experiments_root):
             cue_quantized = quantizer.quantize(cue_embedding, eam_instance.m)
 
             progress(0.6, desc="Consultando memoria")
-            recalled_embeddings, recognized, weights = eam_instance.batch_recall(cue_quantized)
+            recalled_embeddings, recognized, weights = eam_instance.batch_recall(
+                cue_quantized
+            )
             recognized = bool(np.asarray(recognized)[0])
             weight = float(np.asarray(weights, dtype=float)[0])
 
             if not recognized:
                 progress(1.0, desc="Sin coincidencia")
-                return "", f"No se reconocio ninguna memoria para la entrada. Peso medio: {weight:.4f}."
+                return (
+                    "",
+                    f"No se reconocio ninguna memoria para la entrada. Peso medio: {weight:.4f}.",
+                )
 
             progress(0.8, desc="Reconstruyendo embedding")
             recalled_embedding = quantizer.dequantize(
@@ -1160,7 +1226,10 @@ def interactive_memory(cfg, device, experiments_root):
             )[0]
 
         progress(1.0, desc="Completado")
-        return recalled_text, f"Memoria reconocida correctamente. Peso medio: {weight:.4f}."
+        return (
+            recalled_text,
+            f"Memoria reconocida correctamente. Peso medio: {weight:.4f}.",
+        )
 
     with gr.Blocks() as recall:
         gr.Markdown(

@@ -4,16 +4,14 @@ import sys
 
 import numpy as np
 import torch
+from datasets import load_dataset as load_dataset_hf
 from torch.utils.data import Dataset
 from torchvision import transforms
-from datasets import load_dataset as load_dataset_hf
 
 path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../data/"))
 sys.path.append(path)
-from SPOTS.utils import SPOT10Loader
-
-from datasets.features import Image as HFImage
 from PIL import Image as PILImage
+from SPOTS.utils import SPOT10Loader
 
 # Custom Dataset
 
@@ -44,7 +42,8 @@ class CustomImageDataset(Dataset):
             target = self.target_transform(target)
         assert img.ndim == 3, f"Shape incorrecto: {img.shape}"
         return img, target
-    
+
+
 class HFDataProxy:
     """Module-level proxy that lazily pulls images from a HF dataset.
 
@@ -67,8 +66,14 @@ class HFDataProxy:
 
 
 class HFImageDataset(CustomImageDataset):
-
-    def __init__(self, hf_ds, label_col=None, label_map=None, transform=None, target_transform=torch.as_tensor):
+    def __init__(
+        self,
+        hf_ds,
+        label_col=None,
+        label_map=None,
+        transform=None,
+        target_transform=torch.as_tensor,
+    ):
         """Wrap a Hugging Face image Dataset but provide the same
         interface as `CustomImageDataset` without materializing all images.
 
@@ -99,10 +104,16 @@ class HFImageDataset(CustomImageDataset):
 
         data_proxy = HFDataProxy(self.hf_ds)
 
-        super().__init__(data=data_proxy, targets=labels, transform=transform, target_transform=target_transform)
+        super().__init__(
+            data=data_proxy,
+            targets=labels,
+            transform=transform,
+            target_transform=target_transform,
+        )
 
     def __len__(self):
         return len(self.hf_ds)
+
 
 class ImageDatasetWrapper:
     def __init__(
@@ -153,7 +164,6 @@ class ImageDatasetWrapper:
             self.test = CustomImageDataset(images_test, targets_test)
 
         elif dataset_name == "WikiArt":
-
             ds = load_dataset_hf("Artificio/WikiArt")
 
             # If no test split, create one from train (default 10% test)
@@ -164,7 +174,7 @@ class ImageDatasetWrapper:
                 ds["train"] = split["train"]
                 ds["test"] = split["test"]
 
-            label_col = 'genre'
+            label_col = "genre"
 
             # Build a mapping for string labels to integer indices (if needed)
             label_map = None
@@ -176,10 +186,16 @@ class ImageDatasetWrapper:
 
             # Create PyTorch datasets that apply transforms on the fly (no full memory copy)
             self.train = HFImageDataset(
-                ds["train"], label_col=label_col, label_map=label_map, transform=transform
+                ds["train"],
+                label_col=label_col,
+                label_map=label_map,
+                transform=transform,
             )
             self.test = HFImageDataset(
-                ds["test"], label_col=label_col, label_map=label_map, transform=transform
+                ds["test"],
+                label_col=label_col,
+                label_map=label_map,
+                transform=transform,
             )
 
             # Expose number of classes if possible
@@ -192,7 +208,6 @@ class ImageDatasetWrapper:
                     self.n_classes = None
             except Exception:
                 self.n_classes = None
-
 
         else:
             raise ValueError(f"Dataset not supported: {dataset_name}")

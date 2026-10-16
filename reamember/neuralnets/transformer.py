@@ -1,8 +1,11 @@
 from pathlib import Path
 
-import torch
 import pytorch_lightning as pl
-from sonar.inference_pipelines.text import EmbeddingToTextModelPipeline, TextToEmbeddingModelPipeline
+import torch
+from sonar.inference_pipelines.text import (
+    EmbeddingToTextModelPipeline,
+    TextToEmbeddingModelPipeline,
+)
 
 
 class SONAR(pl.LightningModule):

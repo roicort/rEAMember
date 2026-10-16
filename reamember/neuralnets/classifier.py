@@ -1,8 +1,9 @@
 # Clasificador en PyTorch (estructura base)
 import pytorch_lightning as pl
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
+from torch import nn
+
 
 class Classifier(pl.LightningModule):
     def __init__(
@@ -13,7 +14,7 @@ class Classifier(pl.LightningModule):
         dropout: float = 0.3,
         lr: float = 1e-3,
         weight_decay: float = 1e-4,
-        scheduler_gamma: float = 0.95
+        scheduler_gamma: float = 0.95,
     ):
         super().__init__()
         self.lr = lr
@@ -33,7 +34,7 @@ class Classifier(pl.LightningModule):
 
     def forward(self, x):
         return self.net(x)
-    
+
     def predict(self, x):
         self.eval()
         with torch.no_grad():
@@ -68,10 +69,12 @@ class Classifier(pl.LightningModule):
         return {"test_loss": loss, "test_acc": acc}
 
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.parameters(), lr=self.lr, weight_decay=self.weight_decay)
+        optimizer = torch.optim.Adam(
+            self.parameters(), lr=self.lr, weight_decay=self.weight_decay
+        )
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
             optimizer,
-            mode='min',
+            mode="min",
             factor=self.scheduler_gamma,
             patience=5,
         )
@@ -81,7 +84,6 @@ class Classifier(pl.LightningModule):
                 "scheduler": scheduler,
                 "interval": "epoch",
                 "monitor": "val_loss",
-                "frequency": 1
-            }
+                "frequency": 1,
+            },
         }
-
