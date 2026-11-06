@@ -577,6 +577,7 @@ def create_text_memories(cfg, n_saved, device, use_noise=False, experiments_root
     latent = int(get_scalar_config_value(cfg.neural.latent_dim))
     domain = int(get_scalar_config_value(cfg.memory.domain))
     batch_size = get_memory_batch_size(cfg, domain)
+    decode_batch_size = cfg.neural.batch_size or 32
     filling_percent = float(get_scalar_config_value(cfg.memory.filling))
     sigma = float(get_scalar_config_value(cfg.memory.sigma))
     iota = float(get_scalar_config_value(cfg.memory.iota))
@@ -675,6 +676,7 @@ def create_text_memories(cfg, n_saved, device, use_noise=False, experiments_root
         original_texts=reconstructable_texts,
         cue_texts=reconstructable_cues,
         embeddings=reconstructable_embeddings,
+        batch_size=decode_batch_size,
     )
 
     for sample, original_index in zip(samples, recognized_indices):
@@ -1119,6 +1121,7 @@ def interactive_memory(cfg, device, experiments_root):
     latent = int(get_scalar_config_value(cfg.neural.latent_dim))
     domain = int(get_scalar_config_value(cfg.memory.domain))
     batch_size = get_memory_batch_size(cfg, domain)
+    decode_batch_size = cfg.neural.batch_size or 64
     filling_percent = float(get_scalar_config_value(cfg.memory.filling))
     sigma = float(get_scalar_config_value(cfg.memory.sigma))
     iota = float(get_scalar_config_value(cfg.memory.iota))
@@ -1227,6 +1230,7 @@ def interactive_memory(cfg, device, experiments_root):
                 model=transformer,
                 embeddings=recalled_embedding,
                 device=device,
+                batch_size=decode_batch_size,
             )[0]
 
         progress(1.0, desc="Completado")

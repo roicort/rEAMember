@@ -135,6 +135,8 @@ def _validate_runtime_config(cfg: DictConfig) -> None:
             raise ValueError("memory.batch_size values must be positive integers")
     elif cfg.memory.batch_size is not None and cfg.memory.batch_size <= 0:
         raise ValueError("memory.batch_size must be a positive integer when provided")
+    if cfg.neural.batch_size is not None and cfg.neural.batch_size <= 0:
+        raise ValueError("neural.batch_size must be a positive integer when provided")
     if any(value < 0 for value in iota_values):
         raise ValueError("memory.iota values must be greater than or equal to 0")
     if any(value < 0 for value in kappa_values):
