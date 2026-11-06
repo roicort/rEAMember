@@ -516,6 +516,7 @@ def test_text_encoder(cfg, n_examples, device, experiments_root):
 
 def get_text_embeddings(cfg, device, experiments_root):
     click.echo(f"[INFO] Loading dataset: {cfg.app.dataset}")
+    batch_size = cfg.neural.batch_size or 32
 
     dataset = TextDatasetWrapper(
         dataset_name=cfg.app.dataset,
@@ -538,6 +539,7 @@ def get_text_embeddings(cfg, device, experiments_root):
         modality=cfg.app.modality,
         device=device,
         save_path=file_embeddings_path,
+        batch_size=batch_size,
         num_workers=0,
     )
 
@@ -569,6 +571,7 @@ def get_text_embeddings(cfg, device, experiments_root):
             modality=cfg.app.modality,
             device=device,
             save_path=file_embeddings_path,
+            batch_size=batch_size,
             num_workers=0,
         )
 
