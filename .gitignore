@@ -163,3 +163,5 @@ cython_debug/
 /data/npvinHnivqn_EnglishDictionary
 /data/FashionMNIST/
 *.pth
+/experiments/npvinHnivqn-EnglishDictionary/word_1024/recognition_noise_0.003/raw
+/experiments/npvinHnivqn-EnglishDictionary/definition_1024/recognition_noise_0.003/raw
